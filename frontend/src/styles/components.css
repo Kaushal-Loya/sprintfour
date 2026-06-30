@@ -216,6 +216,20 @@
   user-select: none;
 }
 
+.doc-span-blackout {
+  background-color: var(--color-text-primary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-text-primary);
+  user-select: none;
+}
+.doc-span-blackout::selection {
+  background: transparent;
+  color: transparent;
+}
+.doc-span-blackout .span-label {
+  opacity: 0;
+}
+
 .doc-span.band-high   { background: var(--redact-high-bg);   color: var(--redact-high-text);   border: 1px solid var(--color-high-border); }
 .doc-span.band-medium { background: var(--redact-medium-bg); color: var(--redact-medium-text); border: 1px solid var(--color-medium-border); }
 .doc-span.band-low    { background: var(--redact-low-bg);    color: var(--redact-low-text);    border: 1px solid var(--color-low-border); }

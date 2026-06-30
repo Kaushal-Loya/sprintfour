@@ -37,6 +37,7 @@ export default function AllRedactionsPanel({
   onSpanClick,
   onUpdateSpan,
   onRemove,
+  onNextUnreviewed
 }) {
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [sortBy, setSortBy] = useState('confidence');
@@ -75,7 +76,7 @@ export default function AllRedactionsPanel({
   }
 
   return (
-    <div className="all-redactions-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="all-redactions-panel" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative' }}>
       <div className="panel-header" style={{ padding: 'var(--space-4) var(--space-5)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ margin: 0, fontSize: 'var(--text-md)', color: 'var(--color-text-primary)' }}>Detected PII</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
@@ -156,6 +157,7 @@ export default function AllRedactionsPanel({
                 spans={spans}
                 onUpdateSpan={onUpdateSpan}
                 onRemove={() => { onRemove(selectedSpan.id); onSpanClick(null); }}
+                onNextUnreviewed={onNextUnreviewed}
               />
             </div>
           </div>
@@ -215,7 +217,7 @@ function RedactionListItem({ span, isSelected, onClick, totalSpans }) {
   );
 }
 
-function RedactionDetailContent({ span, spans, onUpdateSpan, onRemove }) {
+function RedactionDetailContent({ span, spans, onUpdateSpan, onRemove, onNextUnreviewed }) {
   const [isRevealed, setIsRevealed] = useState(false);
 
   const action = span.action ?? null;
@@ -228,6 +230,12 @@ function RedactionDetailContent({ span, spans, onUpdateSpan, onRemove }) {
   const setAction = (newAction) => {
     const newStatus = newAction === 'keep-visible' ? 'dismissed' : 'confirmed';
     onUpdateSpan(span.id, { action: newAction, status: newStatus });
+
+    if (newStatus === 'confirmed' || newStatus === 'dismissed') {
+      setTimeout(() => {
+        if (onNextUnreviewed) onNextUnreviewed();
+      }, 150); // slight delay so the user sees the button change color before sliding
+    }
   };
 
   const actionButtons = [

@@ -56,6 +56,9 @@ export default function App() {
   // --- Drag and Drop State ---
   const [isDragging, setIsDragging] = useState(false);
 
+  // --- Paste State ---
+  const [pastedText, setPastedText] = useState('');
+
   // --- Resize state ---
   const [docWidthPct, setDocWidthPct] = useState(65); // percent of workspace
   const workspaceRef = useRef(null);
@@ -169,6 +172,8 @@ export default function App() {
     const unreviewed = spans.filter(s => s.status === 'unreviewed').sort((a, b) => a.confidence - b.confidence);
     if (unreviewed.length > 0) {
       setSelectedSpan(unreviewed[0]);
+    } else {
+      setSelectedSpan(null);
     }
   }, [spans]);
 
@@ -573,18 +578,58 @@ export default function App() {
 
         {/* Empty state */}
         {!isDetecting && !hasDocument && !detectError && (
-          <div 
-            className="state-empty" 
-            onClick={() => fileInputRef.current?.click()}
-            style={{ cursor: 'pointer' }}
-          >
-            <span style={{ fontSize: 40, display: 'none' }}></span>
-            <p style={{ fontWeight: 'var(--weight-semibold)' }}>
-              Drag and drop a file here, or click to upload
-            </p>
-            <p style={{ fontSize: 'var(--text-sm)', maxWidth: 380, textAlign: 'center' }}>
-              Alternatively, select a sample document from the dropdown above and click Analyze.
-            </p>
+          <div className="empty-state-container">
+            <div 
+              className="empty-pane empty-upload" 
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <div style={{ fontSize: 32, marginBottom: 'var(--space-2)', color: 'var(--color-text-muted)' }}>📄</div>
+              <h3 style={{ margin: '0 0 var(--space-2)', fontSize: 'var(--text-base)', color: 'var(--color-text-primary)' }}>Upload Document</h3>
+              <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                Drag and drop a file here, or click to browse. Supports PDF, DOCX, and TXT files.
+              </p>
+            </div>
+            
+            <div className="empty-divider">
+              <span>OR</span>
+            </div>
+
+            <div className="empty-pane empty-paste">
+              <h3 style={{ margin: '0 0 var(--space-2)', fontSize: 'var(--text-base)', color: 'var(--color-text-primary)' }}>Paste Text</h3>
+              <textarea 
+                className="paste-textarea" 
+                placeholder="Paste your text here..."
+                value={pastedText}
+                onChange={e => setPastedText(e.target.value)}
+              />
+              <button 
+                className="btn-analyze paste-analyze-btn"
+                disabled={!pastedText.trim() || isDetecting}
+                onClick={async () => {
+                  if (!pastedText.trim()) return;
+                  const docId = 'pasted_' + Date.now();
+                  const newDoc = { id: docId, title: 'Pasted Text', text: pastedText, isImagePDF: false };
+                  setDocs(prev => [newDoc, ...prev]);
+                  setSelectedDocId(docId);
+                  
+                  // Auto-analyze
+                  setDetectError(null);
+                  setIsDetecting(true);
+                  setCurrentDoc(newDoc);
+                  try {
+                    const result = await detectPII(pastedText);
+                    setSpans(result.spans.map(s => ({ ...s, status: 'unreviewed', action: null })));
+                  } catch (err) {
+                    setDetectError(err.message);
+                    setCurrentDoc(null);
+                  } finally {
+                    setIsDetecting(false);
+                  }
+                }}
+              >
+                Analyze Pasted Text
+              </button>
+            </div>
           </div>
         )}
 
@@ -638,6 +683,7 @@ export default function App() {
                 onSpanClick={handleSpanClick}
                 onUpdateSpan={handleUpdateSpan}
                 onRemove={handleRemoveSpan}
+                onNextUnreviewed={handleNextUnreviewed}
               />
             </div>
           </div>

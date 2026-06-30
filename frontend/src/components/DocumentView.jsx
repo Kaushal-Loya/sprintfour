@@ -47,14 +47,25 @@ export default function DocumentView({
 
     // Find the closest text segment element to get its global offset
     const textSegmentEl = el.closest('.doc-text');
-    if (!textSegmentEl) return;
-    
-    const globalOffsetStr = textSegmentEl.getAttribute('data-offset');
-    if (globalOffsetStr == null) return;
-    
-    const globalOffset = parseInt(globalOffsetStr, 10);
-    const startIndex = globalOffset + Math.min(range.startOffset, range.endOffset);
-    const endIndex = globalOffset + Math.max(range.startOffset, range.endOffset);
+    let startIndex = null;
+    let endIndex = null;
+
+    if (textSegmentEl) {
+      const globalOffsetStr = textSegmentEl.getAttribute('data-offset');
+      if (globalOffsetStr != null) {
+        const globalOffset = parseInt(globalOffsetStr, 10);
+        startIndex = globalOffset + Math.min(range.startOffset, range.endOffset);
+        endIndex = globalOffset + Math.max(range.startOffset, range.endOffset);
+      }
+    }
+
+    if (startIndex == null) {
+      // Fallback: search for the text in the document
+      // This handles selections across multiple nodes or from the margin
+      startIndex = text.indexOf(selected);
+      if (startIndex === -1) return; // Not found exactly (maybe spanned across redacted pills)
+      endIndex = startIndex + selected.length;
+    }
 
     const rect = range.getBoundingClientRect();
     onTextSelection({ text: selected, startIndex, endIndex, rect });
@@ -136,7 +147,25 @@ export default function DocumentView({
             );
           }
 
-          // default: redacted pill (same as before, action = 'redact' or null)
+          // redact: solid blackout pill
+          if (action === 'redact') {
+            return (
+              <span
+                key={i}
+                data-span-id={span.id}
+                className={`doc-span doc-span-blackout ${isSelected ? 'span-selected' : ''}`}
+                onClick={() => onSpanClick(span)}
+                title={`${span.type} — redacted`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && onSpanClick(span)}
+              >
+                <span className="span-label">{span.text}</span>
+              </span>
+            );
+          }
+
+          // default: unreviewed pill
           return (
             <span
               key={i}
