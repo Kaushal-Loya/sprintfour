@@ -15,10 +15,14 @@ const PANEL_MODE = {
 
 export default function App() {
   // --- Theme ---
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('conseal_theme');
+    return saved || 'light';
+  });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('conseal_theme', theme);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
@@ -48,26 +52,29 @@ export default function App() {
   const [isExplaining,      setIsExplaining]      = useState(false);
   const [explainError,      setExplainError]      = useState(null);
 
+  // --- Drag and Drop State ---
+  const [isDragging, setIsDragging] = useState(false);
+
   // --- Resize state ---
   const [docWidthPct, setDocWidthPct] = useState(65); // percent of workspace
   const workspaceRef = useRef(null);
-  const isDragging   = useRef(false);
+  const isResizing   = useRef(false);
 
   const handleResizeMouseDown = useCallback((e) => {
     e.preventDefault();
-    isDragging.current = true;
+    isResizing.current = true;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
 
     const onMouseMove = (moveEvent) => {
-      if (!isDragging.current || !workspaceRef.current) return;
+      if (!isResizing.current || !workspaceRef.current) return;
       const rect = workspaceRef.current.getBoundingClientRect();
       const newPct = ((moveEvent.clientX - rect.left) / rect.width) * 100;
       setDocWidthPct(Math.min(80, Math.max(30, newPct)));
     };
 
     const onMouseUp = () => {
-      isDragging.current = false;
+      isResizing.current = false;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       document.removeEventListener('mousemove', onMouseMove);
@@ -98,7 +105,6 @@ export default function App() {
     setSelectedSpan(null);
     setRevealedIds(new Set());
     setDetectError(null);
-    setWhyNotText(null);
     setWhyNotExplanation(null);
     setExplainError(null);
     setPanelMode(PANEL_MODE.REDACTION);
@@ -128,7 +134,6 @@ export default function App() {
     setSelectedSpan(span);
     setPanelMode(PANEL_MODE.REDACTION);
     // Clear why-not state when switching to a redaction
-    setWhyNotText(null);
     setWhyNotExplanation(null);
     setExplainError(null);
   }, []);
@@ -155,7 +160,12 @@ export default function App() {
 
   // --- Upload Document ---
   const handleFileUpload = useCallback(async (e) => {
-    const file = e.target.files[0];
+    let file = null;
+    if (e.target && e.target.files) {
+      file = e.target.files[0];
+    } else if (e.dataTransfer && e.dataTransfer.files) {
+      file = e.dataTransfer.files[0];
+    }
     if (!file) return;
 
     // Reset file input so we can upload the same file again if needed
@@ -163,6 +173,7 @@ export default function App() {
       fileInputRef.current.value = '';
     }
 
+    setIsDragging(false);
     setIsUploading(true);
     setDetectError(null);
 
@@ -258,6 +269,23 @@ export default function App() {
     setPanelMode(PANEL_MODE.REDACTION);
   }, []);
 
+  // --- Drag and Drop Handlers ---
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileUpload(e);
+  }, [handleFileUpload]);
+
   const hasResults = currentDoc && spans.length > 0;
   const canAnalyze = selectedDocId && !isDetecting;
 
@@ -287,7 +315,21 @@ export default function App() {
       </header>
 
       {/* ── Main ── */}
-      <main className="app-main">
+      <main 
+        className="app-main"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        style={{ position: 'relative' }}
+      >
+        {isDragging && (
+          <div className="drag-overlay">
+            <div className="drag-overlay-content">
+              <span style={{ fontSize: 40 }}>📄</span>
+              <p>Drop file to upload</p>
+            </div>
+          </div>
+        )}
 
         {/* Document picker */}
         <div className="doc-picker">
@@ -323,14 +365,6 @@ export default function App() {
             onChange={handleFileUpload}
             accept=".pdf,.docx,.txt,.md"
           />
-          <button
-            className="btn-analyze"
-            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' }}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading || isDetecting}
-          >
-            {isUploading ? 'Uploading…' : 'Upload File'}
-          </button>
         </div>
 
         {/* Summary bar */}
@@ -354,14 +388,17 @@ export default function App() {
 
         {/* Empty state */}
         {!isDetecting && !currentDoc && !detectError && (
-          <div className="state-empty">
-            <span style={{ fontSize: 40 }}>🔒</span>
+          <div 
+            className="state-empty" 
+            onClick={() => fileInputRef.current?.click()}
+            style={{ cursor: 'pointer' }}
+          >
+            <span style={{ fontSize: 40 }}>📄</span>
             <p style={{ fontWeight: 'var(--weight-semibold)' }}>
-              Select a document and click Analyze
+              Drag and drop a file here, or click to upload
             </p>
             <p style={{ fontSize: 'var(--text-sm)', maxWidth: 380, textAlign: 'center' }}>
-              The AI will detect PII and explain every decision —
-              including what it's uncertain about.
+              Alternatively, select a sample document from the dropdown above and click Analyze.
             </p>
           </div>
         )}

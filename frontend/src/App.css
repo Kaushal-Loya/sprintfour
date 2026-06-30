@@ -247,6 +247,19 @@ body, .app-header, .panel, .document-view, .summary-bar {
   color: var(--color-text-secondary);
 }
 
+.state-empty {
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  margin: var(--space-12) auto;
+  max-width: 600px;
+  transition: all var(--transition-fast);
+}
+.state-empty:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-2);
+}
+
 .state-error {
   background: var(--color-error-bg);
   border: 1px solid rgba(248,113,113,0.2);

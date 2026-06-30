@@ -246,3 +246,35 @@ button {
   background: var(--color-accent-dim);
   color: var(--color-text-primary);
 }
+
+/* ---- Drag and Drop Overlay ---- */
+.drag-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(var(--surface-sunken), 0.8);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  pointer-events: none;
+}
+
+.drag-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--accent);
+  background: var(--surface);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
