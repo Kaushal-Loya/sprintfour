@@ -1,8 +1,9 @@
 // api/client.js
 // Fetch wrappers for backend endpoints.
 // All paths use /api — proxied to localhost:3001 by Vite in dev.
+// In production (Vercel), set VITE_API_URL to the Render backend URL (e.g., https://your-backend.onrender.com/api)
 
-const BASE = '/api';
+const BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Fetch the list of sample documents.
