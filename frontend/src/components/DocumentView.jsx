@@ -110,13 +110,13 @@ export default function DocumentView({
 
       <div className="document-legend">
         <span className="legend-item">
-          <span className="legend-dot dot-high" /> High confidence
+          <span className="legend-dot dot-high" /> Primary PII
         </span>
         <span className="legend-item">
-          <span className="legend-dot dot-medium" /> Medium
+          <span className="legend-dot dot-medium" /> Contextual PII
         </span>
         <span className="legend-item">
-          <span className="legend-dot dot-low" /> Low — review
+          <span className="legend-dot dot-low" /> Low confidence
         </span>
         <span className="legend-sep" />
         <span className="legend-hint">Click a redaction to inspect · Select text to ask why it wasn't flagged</span>
@@ -162,6 +162,7 @@ function formatType(type) {
     ADDRESS:     'Address',
     DATE_OF_BIRTH: 'DOB',
     ORG:         'Org',
+    JOB_TITLE:   'Role',
     ACCOUNT_NUMBER: 'Acct#',
     FINANCIAL:   '$$$',
     OTHER:       'PII',

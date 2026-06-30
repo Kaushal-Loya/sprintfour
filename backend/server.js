@@ -1,6 +1,7 @@
 // server.js — Express app entry point
 // Mounts routes, configures middleware, starts the server.
-// API key is read from process.env (loaded via --env-file or dotenv).
+// API key is read from process.env, loaded via the --env-file flag
+// in the npm script (Node 20.6+ built-in env loader — no dotenv needed).
 
 import express from "express";
 import cors from "cors";
@@ -24,7 +25,7 @@ app.use("/api/explain", explainRouter);
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
-    apiKeySet: !!process.env.GEMINI_API_KEY,
+    apiKeySet: !!process.env.GROQ_API_KEY,
   });
 });
 
@@ -41,6 +42,6 @@ app.use((err, _req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log(`\n✅ Conseal backend running on http://localhost:${PORT}`);
-  console.log(`   API key set: ${!!process.env.GEMINI_API_KEY}`);
+  console.log(`   API key set: ${!!process.env.GROQ_API_KEY}`);
   console.log(`   Health: http://localhost:${PORT}/api/health\n`);
 });

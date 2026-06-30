@@ -18,15 +18,18 @@ export function getConfidenceBand(confidence) {
 }
 
 const VALID_PII_TYPES = [
+  // Primary PII — directly identifies a person
   "PERSON_NAME",
   "EMAIL",
   "PHONE",
   "SSN",
   "ADDRESS",
   "DATE_OF_BIRTH",
-  "ORG",
   "ACCOUNT_NUMBER",
   "FINANCIAL",
+  // Contextual PII — indirectly identifying / quasi-identifiers
+  "ORG",
+  "JOB_TITLE",
   "OTHER",
 ];
 
@@ -36,22 +39,39 @@ const VALID_PII_TYPES = [
  * @returns {string}
  */
 function buildDetectionPrompt(documentText) {
-  return `You are a PII detection assistant. Your job is to find all Personally Identifiable Information (PII) in the document below and return a strict JSON array.
+  return `You are a PII detection assistant operating a TWO-TIER detection model. Your job is to identify ALL sensitive information in the document and return a strict JSON array.
 
-For each PII span found, return an object with these exact fields:
+## TIER 1 — Primary PII (directly identifies a person)
+Use these types for high-sensitivity data:
+- PERSON_NAME: Full names, first names used in salutation context
+- EMAIL: Email addresses
+- PHONE: Phone or fax numbers
+- SSN: Social Security Numbers or national ID numbers
+- ADDRESS: Physical street addresses, zip codes
+- DATE_OF_BIRTH: Birthdates when explicitly labeled as such
+- ACCOUNT_NUMBER: Policy numbers, member IDs, account numbers, reference numbers that are EXPLICITLY linked to a named individual (e.g. "your policy number is HX-8821-99", "your account ID is ACC-442"). Flag these even if they look like codes.
+- FINANCIAL: Salary, compensation, personal income figures tied to an identified individual (e.g. "$145,000 per year")
+
+## TIER 2 — Contextual PII (quasi-identifiers, indirectly identifying)
+Use these types for information that narrows down identity when combined with other data:
+- ORG: Company names, employer names, organization names that appear in a personal document context (e.g. the signing company on an offer letter, the insurance company processing a claim)
+- JOB_TITLE: Job titles, roles, positions (e.g. "Senior Claims Adjuster", "VP of People Operations")
+- Any other forms of Contextual PII you can identify.
+
+For each PII span found, return:
 - "text": the exact substring as it appears in the document
-- "type": one of PERSON_NAME, EMAIL, PHONE, SSN, ADDRESS, DATE_OF_BIRTH, ORG, ACCOUNT_NUMBER, FINANCIAL, OTHER
-- "startIndex": the character index where this text starts in the document (0-based)
-- "endIndex": the character index where this text ends (exclusive, like slice)
-- "confidence": a number between 0 and 1 representing how confident you are this is PII
-- "reasoning": a single plain-English sentence explaining WHY this is flagged at this confidence level
+- "type": one of PERSON_NAME, EMAIL, PHONE, SSN, ADDRESS, DATE_OF_BIRTH, ACCOUNT_NUMBER, FINANCIAL, ORG, JOB_TITLE, OTHER
+- "startIndex": character index where this text starts (0-based)
+- "endIndex": character index where this text ends (exclusive, like slice)
+- "confidence": 0–1, how confident you are this is PII of that type
+- "reasoning": one plain-English sentence explaining WHY this is flagged
 
-Important rules:
-1. Be honest about uncertainty. If something looks like PII but you're not sure, give it a lower confidence (e.g. 0.4–0.6) and explain why in the reasoning.
-2. DO flag policy numbers, account numbers, member IDs, and reference numbers when they are explicitly linked to a specific individual in the document. Use type ACCOUNT_NUMBER.
-3. DO flag salary figures, compensation amounts, or personal financial data (e.g. "$145,000 per year") when they are explicitly tied to an identified individual in the document. Use type FINANCIAL. Do NOT flag general prices or company revenue figures.
-4. Do NOT flag generic dates used as timeframes, company/organization names, or job titles as PII.
-5. startIndex and endIndex must exactly match the "text" field as a substring of the document. Double-check this before returning.
+Rules:
+1. Be honest about uncertainty — give lower confidence (0.4–0.6) when unsure, and say why.
+2. ALWAYS flag Tier 1 PII. Never skip names, SSNs, emails, phones, addresses, or account/policy numbers linked to a person. Assign confidence 0.9–1.0 for these.
+3. Flag Tier 2 (ORG, JOB_TITLE) when they appear in a personal document context. You MUST flag EVERY occurrence of the organization name and job title, including in the signature block or header. Assign confidence 0.7–0.8 for these to place them in the Medium confidence band.
+4. Do NOT flag: generic time durations ("30-day window"), procedural dates not linked to a person's identity, generic prices unlinked to an individual, or State names when used as a legal jurisdiction (e.g. "California employment law").
+5. startIndex and endIndex MUST match the exact "text" substring in the document. Verify before returning.
 6. Return ONLY the JSON array — no markdown, no explanation, no code fences.
 
 Document:
@@ -104,6 +124,7 @@ function parseAndValidateSpans(rawResponse, documentText) {
 
   let dropped = 0;
   const validated = [];
+  const usedFallbackIndices = new Set();
 
   for (const span of rawSpans) {
     // Schema check
@@ -126,17 +147,37 @@ function parseAndValidateSpans(rawResponse, documentText) {
     const actualText = documentText.slice(span.startIndex, span.endIndex);
     if (actualText !== span.text) {
       // Try to find the text elsewhere as a fallback (LLM sometimes gets index slightly wrong)
-      const foundIndex = documentText.indexOf(span.text);
-      if (foundIndex === -1) {
+      // We look for the occurrence that is closest to the AI's provided index and hasn't been used yet.
+      let bestIndex = -1;
+      let minDistance = Infinity;
+      let pos = 0;
+      
+      while ((pos = documentText.indexOf(span.text, pos)) !== -1) {
+        if (!usedFallbackIndices.has(pos)) {
+          const distance = Math.abs(pos - span.startIndex);
+          if (distance < minDistance) {
+            minDistance = distance;
+            bestIndex = pos;
+          }
+        }
+        pos += 1;
+      }
+
+      if (bestIndex === -1) {
         dropped++;
         console.warn(
-          `[detection] Dropping hallucinated span — text not found in document: "${span.text}"`
+          `[detection] Dropping hallucinated/duplicate span — text not found or already covered: "${span.text}"`
         );
         continue;
       }
+      
       // Correct the indices
-      span.startIndex = foundIndex;
-      span.endIndex = foundIndex + span.text.length;
+      usedFallbackIndices.add(bestIndex);
+      span.startIndex = bestIndex;
+      span.endIndex = bestIndex + span.text.length;
+    } else {
+      // If the AI actually got it perfectly right, record the index so fallback doesn't reuse it
+      usedFallbackIndices.add(span.startIndex);
     }
 
     validated.push({

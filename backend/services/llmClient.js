@@ -22,6 +22,7 @@ export async function callGemini(prompt) {
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
     contents: prompt,
+    config: { maxOutputTokens: 8192 }
   });
   return response.text;
 }

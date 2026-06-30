@@ -15,6 +15,7 @@ const TYPE_LABELS = {
   ADDRESS:     'Physical Address',
   DATE_OF_BIRTH: 'Date of Birth',
   ORG:         'Organization',
+  JOB_TITLE:   'Job Title / Role',
   ACCOUNT_NUMBER: 'Account / Policy Number',
   FINANCIAL:   'Financial Information',
   OTHER:       'Other PII',
@@ -28,6 +29,7 @@ const TYPE_ICONS = {
   ADDRESS:     '📍',
   DATE_OF_BIRTH: '🗓',
   ORG:         '🏢',
+  JOB_TITLE:   '💼',
   ACCOUNT_NUMBER: '🪪',
   FINANCIAL:   '💰',
   OTHER:       '⚠️',
@@ -67,9 +69,13 @@ export default function RedactionPanel({ span, revealedIds, onReveal, onHide }) 
           <span className="panel-type-icon">{TYPE_ICONS[span.type] || '⚠️'}</span>
           <div>
             <div className="panel-type-label">{TYPE_LABELS[span.type] || span.type}</div>
-            <div className="panel-type-id">{span.id}</div>
+            <div className="panel-type-id">ID: {span.id}</div>
           </div>
         </div>
+      </div>
+
+      {/* Confidence */}
+      <div style={{ padding: 'var(--space-4) var(--space-5) 0' }}>
         <ConfidenceBadge confidence={span.confidence} />
       </div>
 

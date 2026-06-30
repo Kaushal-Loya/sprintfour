@@ -35,11 +35,11 @@ export default function SummaryBar({ spans, isLoading }) {
       <div className="summary-divider" />
 
       <div className="summary-bands">
-        <div className="summary-band" title={`${high} high-confidence redactions`}>
+        <div className="summary-band" title={`${high} primary PII redactions (Tier 1)`}>
           <span className="band-count band-count-high">{high}</span>
           <ConfidenceBadge confidence={0.9} showValue={false} size="sm" />
         </div>
-        <div className="summary-band" title={`${medium} medium-confidence redactions`}>
+        <div className="summary-band" title={`${medium} contextual PII redactions (Tier 2)`}>
           <span className="band-count band-count-medium">{medium}</span>
           <ConfidenceBadge confidence={0.7} showValue={false} size="sm" />
         </div>
@@ -79,6 +79,7 @@ function formatType(type) {
     ADDRESS: 'Address',
     DATE_OF_BIRTH: 'DOB',
     ORG: 'Org',
+    JOB_TITLE: 'Role',
     ACCOUNT_NUMBER: 'Acct#',
     FINANCIAL: 'Financial',
     OTHER: 'Other',
