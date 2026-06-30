@@ -16,13 +16,19 @@ const ai = new GoogleGenAI({ apiKey });
 /**
  * Send a prompt to Gemini and return the raw text response.
  * @param {string} prompt - The full prompt string to send.
+ * @param {boolean} isJson - Whether the response should be forced to JSON format.
  * @returns {Promise<string>} - Raw text from the model.
  */
-export async function callGemini(prompt) {
+export async function callGemini(prompt, isJson = false) {
+  const config = { maxOutputTokens: 8192 };
+  if (isJson) {
+    config.responseMimeType = "application/json";
+  }
+
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
     contents: prompt,
-    config: { maxOutputTokens: 8192 }
+    config
   });
   return response.text;
 }

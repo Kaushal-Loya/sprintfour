@@ -239,7 +239,7 @@ function parseAndValidateSpans(rawResponse, documentText) {
  */
 export async function detectPII(documentText) {
   const prompt = buildDetectionPrompt(documentText);
-  const rawResponse = await callGemini(prompt);
+  const rawResponse = await callGemini(prompt, true);
   return parseAndValidateSpans(rawResponse, documentText);
 }
 

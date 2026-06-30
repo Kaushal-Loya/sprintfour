@@ -86,8 +86,22 @@ router.post("/", upload.single("file"), async (req, res) => {
       });
     }
 
+    // If PyMuPDF couldn't extract any text, it's likely a true image PDF.
+    // We signal the frontend to run Tesseract OCR on the client by returning text: ""
+    if (isPDF && (!text || text.trim() === "")) {
+      const docId = `upload_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      return res.json({
+        id: docId,
+        title: originalname,
+        text: "",
+        wordBoxes: [],
+        pages: pagesInfo,
+        isImagePDF: true,
+      });
+    }
+
     if (!text || text.trim() === "") {
-      return res.status(422).json({ error: "Could not extract any text from the document. It might be a scanned image." });
+      return res.status(422).json({ error: "Could not extract any text from the document." });
     }
 
     const docId = `upload_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;

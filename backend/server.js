@@ -8,6 +8,7 @@ import cors from "cors";
 import detectRouter from "./routes/detect.js";
 import explainRouter from "./routes/explain.js";
 import uploadRouter  from "./routes/upload.js";
+import ocrRouter    from "./routes/ocr.js";
 import exportRouter from "./routes/export.js";
 
 const app = express();
@@ -21,6 +22,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use("/api/detect", detectRouter);
 app.use("/api/explain", explainRouter);
 app.use("/api/upload",  uploadRouter);
+app.use("/api/ocr",    ocrRouter);
 app.use("/api/export", exportRouter);
 
 // Sample doc routes live under /api/detect/docs (see detect.js)

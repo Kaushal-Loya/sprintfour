@@ -2,14 +2,13 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import './App.css'
 
 import { fetchDocs, fetchDoc, detectPII, uploadDoc, explainSelection, exportPDF } from './api/client.js';
-import { renderPDFPages } from './utils/pdfUtils.js';
+import { renderPDFPages, renderAndOcrPDF } from './utils/pdfUtils.js';
 import { exportToPDF, exportToDocx, buildRedactedText } from './utils/exportUtils.js';
 import SummaryBar from './components/SummaryBar.jsx';
 import DocumentView from './components/DocumentView.jsx';
 import ImageDocumentView from './components/ImageDocumentView.jsx';
 import AllRedactionsPanel from './components/AllRedactionsPanel.jsx';
 import ProgressBar from './components/ProgressBar.jsx';
-import ExportDiffPanel from './components/ExportDiffPanel.jsx';
 import SelectionPanel      from './components/SelectionPanel.jsx'
 import ExportMenu          from './components/ExportMenu.jsx'
 
@@ -46,7 +45,6 @@ export default function App() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [spans, setSpans] = useState([]);
   const [selectedSpan, setSelectedSpan] = useState(null);
-  const [diffPanel, setDiffPanel] = useState(null);
   const [isOcring,  setIsOcring]  = useState(false);
 
   // --- Why-not / Manual Redaction state ---
@@ -225,8 +223,34 @@ export default function App() {
       setDocs(prev => [uploadedDoc, ...prev]);
       setSelectedDocId(uploadedDoc.id);
 
-      if (uploadedDoc.isImagePDF) {
-        // ── Image PDF path (All PDFs now have wordBoxes from backend) ──────────────────────────
+      if (uploadedDoc.isImagePDF && uploadedDoc.text === "") {
+        // ── Image PDF path (pure scanned images where PyMuPDF failed) ──────────────────────────
+        // 1. Show a stub doc so the workspace appears while OCR runs
+        setCurrentDoc({ ...uploadedDoc, text: '' });
+        setIsUploading(false);
+        setIsOcring(true);
+
+        // 2. Render pages in browser + OCR each page on the server
+        const { pages, wordBoxes: wbs, fullText } = await renderAndOcrPDF(file);
+        setPdfPages(pages);
+        setWordBoxes(wbs);
+        setCurrentDoc({ ...uploadedDoc, text: fullText });
+        setIsOcring(false);
+
+        if (!fullText.trim()) {
+          setDetectError('OCR could not extract any text from this document.');
+          return;
+        }
+
+        // 3. Run PII detection on the OCR text
+        setIsDetecting(true);
+        const result = await detectPII(fullText);
+        setSpans(result.spans.map(s => ({ ...s, status: 'unreviewed', action: null })));
+        if (result.meta?.droppedInvalidOrOverlapping > 0) {
+          console.info(`[detection] ${result.meta.droppedInvalidOrOverlapping} spans dropped`);
+        }
+      } else if (uploadedDoc.isImagePDF) {
+        // ── Vector PDF path (PyMuPDF succeeded in backend) ──────────────────────────
         // 1. Show a stub doc so the workspace appears while rendering runs
         setCurrentDoc({ ...uploadedDoc, text: uploadedDoc.text });
         setIsUploading(false);
@@ -366,10 +390,6 @@ export default function App() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-
-      if (currentDoc.text) {
-        setDiffPanel({ originalText: currentDoc.text, redactedText: buildRedactedText(currentDoc.text, spans) });
-      }
     } catch (err) {
       console.error(err);
       alert(err.message || 'PDF export failed');
@@ -379,7 +399,6 @@ export default function App() {
   const handleExportDocx = useCallback(() => {
     if (!currentDoc) return;
     exportToDocx(currentDoc.text, spans, `${currentDoc.title.replace(/\.[^/.]+$/, "")}_redacted.docx`);
-    setDiffPanel({ originalText: currentDoc.text, redactedText: buildRedactedText(currentDoc.text, spans) });
   }, [currentDoc, spans]);
 
   const hasDocument = Boolean(currentDoc);
@@ -589,7 +608,7 @@ export default function App() {
                   spans={augmentedSpans}
                   selectedSpanId={selectedSpan?.id ?? null}
                   onSpanClick={handleSpanClick}
-                  pdfDims={currentDoc.pages}
+                  pdfDims={currentDoc.isImagePDF && currentDoc.text === "" ? pdfPages : currentDoc.pages}
                 />
               ) : (
                 <DocumentView
@@ -636,17 +655,6 @@ export default function App() {
           onAskExplain={handleAskExplain}
           onAddManualRedaction={handleAddManualSpan}
         />
-      )}
-
-      {/* Export Diff Panel */}
-      {diffPanel && (
-        <div style={{ position: 'fixed', bottom: 'var(--space-4)', right: 'var(--space-4)', zIndex: 1000, width: 400, boxShadow: 'var(--shadow-xl)' }}>
-          <ExportDiffPanel 
-            originalText={diffPanel.originalText}
-            redactedText={diffPanel.redactedText}
-            onClose={() => setDiffPanel(null)}
-          />
-        </div>
       )}
     </div>
   );

@@ -45,6 +45,39 @@ export async function uploadDoc(file) {
 }
 
 /**
+ * Send a rendered PDF page image to the server for Tesseract OCR.
+ * Returns extracted text and per-word bounding boxes in image pixel coordinates.
+ * @param {Blob} imageBlob - PNG blob of the rendered page
+ * @param {number} imageWidth - Canvas width (pixels)
+ * @param {number} imageHeight - Canvas height (pixels)
+ * @returns {Promise<{
+ *   text: string,
+ *   wordBoxes: Array<{ word: string, startIndex: number, endIndex: number, bbox: { x0, y0, x1, y1 }, confidence: number }>,
+ *   imageWidth: number,
+ *   imageHeight: number
+ * }>}
+ */
+export async function ocrPage(imageBlob, imageWidth, imageHeight) {
+  const formData = new FormData();
+  formData.append('image', imageBlob, 'page.png');
+  formData.append('imageWidth', imageWidth.toString());
+  formData.append('imageHeight', imageHeight.toString());
+
+  const res = await fetch(`${BASE}/ocr`, {
+    method: 'POST',
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'OCR processing failed.');
+  
+  return {
+    ...data,
+    imageWidth,
+    imageHeight
+  };
+}
+
+/**
  * Run PII detection on a document text.
  * @param {string} text
  * @returns {Promise<{ spans: PIISpan[], meta: object }>}
