@@ -63,7 +63,7 @@ export default function SummaryBar({ spans, isLoading }) {
 
       {low > 0 && (
         <div className="summary-alert">
-          ⚠ {low} item{low > 1 ? 's' : ''} flagged with low confidence — click to inspect
+           {low} item{low > 1 ? 's' : ''} flagged with low confidence — click to inspect
         </div>
       )}
     </div>
@@ -72,17 +72,18 @@ export default function SummaryBar({ spans, isLoading }) {
 
 function formatType(type) {
   const map = {
-    PERSON_NAME: 'Name',
-    EMAIL: 'Email',
-    PHONE: 'Phone',
-    SSN: 'SSN',
-    ADDRESS: 'Address',
+    PERSON_NAME: 'NAME',
+    EMAIL:       'EMAIL',
+    PHONE:       'PHONE',
+    SSN:         'SSN',
+    ADDRESS:     'ADDRESS',
     DATE_OF_BIRTH: 'DOB',
-    ORG: 'Org',
-    JOB_TITLE: 'Role',
-    ACCOUNT_NUMBER: 'Acct#',
-    FINANCIAL: 'Financial',
-    OTHER: 'Other',
+    ORG:         'ORG',
+    JOB_TITLE:   'ROLE',
+    ACCOUNT_NUMBER: 'ACCT#',
+    FINANCIAL:   '$$$',
+    URL:         'URL',
+    OTHER:       'PII',
   };
   return map[type] || type;
 }

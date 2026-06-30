@@ -5,7 +5,7 @@
 // - Confidence band colors are applied visually from the first glance
 // - Text selection on non-redacted text triggers the "why not?" flow (P1)
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 
 /**
  * @param {{
@@ -58,8 +58,28 @@ export default function DocumentView({
     const startIndex = globalOffset + Math.min(range.startOffset, range.endOffset);
     const endIndex = globalOffset + Math.max(range.startOffset, range.endOffset);
 
-    onTextSelection({ text: selected, startIndex, endIndex });
+    const rect = range.getBoundingClientRect();
+    onTextSelection({ text: selected, startIndex, endIndex, rect });
   }, [onTextSelection]);
+
+  // Scroll to selected span
+  useEffect(() => {
+    if (selectedSpanId && containerRef.current) {
+      const container = containerRef.current;
+      const el = container.querySelector(`[data-span-id="${selectedSpanId}"]`);
+      if (el) {
+        // Use offsetTop which is relative to the offsetParent (now .document-view)
+        const targetScrollTop = el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2);
+        
+        setTimeout(() => {
+          container.scrollTo({
+            top: Math.max(0, targetScrollTop),
+            behavior: 'smooth'
+          });
+        }, 10);
+      }
+    }
+  }, [selectedSpanId]);
 
   return (
     <div
@@ -93,7 +113,7 @@ export default function DocumentView({
                 title={`${span.type} — ${Math.round(span.confidence * 100)}% confidence (revealed)`}
               >
                 {span.text}
-                <span className="span-revealed-indicator" title="Text revealed for verification">👁</span>
+                <span className="span-revealed-indicator" title="Text revealed for verification"></span>
               </span>
             );
           }
@@ -110,10 +130,12 @@ export default function DocumentView({
               onKeyDown={e => e.key === 'Enter' && onSpanClick(span)}
               aria-label={`Redacted: ${span.type}, ${Math.round(span.confidence * 100)}% confidence`}
             >
+              <sub className="span-number left">{span.groupIndex}</sub>
               <span className="span-label">{formatType(span.type)}</span>
               {span.confidence < 0.60 && (
                 <span className="span-uncertain" title="Low confidence — AI is uncertain">?</span>
               )}
+              <sub className="span-number right">{span.globalIndex}</sub>
             </span>
           );
         })}
@@ -166,16 +188,17 @@ function getConfidenceBand(confidence) {
 
 function formatType(type) {
   const map = {
-    PERSON_NAME: 'Name',
-    EMAIL:       'Email',
-    PHONE:       'Phone',
+    PERSON_NAME: 'NAME',
+    EMAIL:       'EMAIL',
+    PHONE:       'PHONE',
     SSN:         'SSN',
-    ADDRESS:     'Address',
+    ADDRESS:     'ADDRESS',
     DATE_OF_BIRTH: 'DOB',
-    ORG:         'Org',
-    JOB_TITLE:   'Role',
-    ACCOUNT_NUMBER: 'Acct#',
+    ORG:         'ORG',
+    JOB_TITLE:   'ROLE',
+    ACCOUNT_NUMBER: 'ACCT#',
     FINANCIAL:   '$$$',
+    URL:         'URL',
     OTHER:       'PII',
   };
   return map[type] || type;

@@ -1,17 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import './App.css'
 
 import { fetchDocs, fetchDoc, detectPII, explainSelection, uploadDoc } from './api/client.js'
 import SummaryBar     from './components/SummaryBar.jsx'
 import DocumentView   from './components/DocumentView.jsx'
-import RedactionPanel from './components/RedactionPanel.jsx'
+import AllRedactionsPanel from './components/AllRedactionsPanel.jsx'
 import SelectionPanel from './components/SelectionPanel.jsx'
-
-// Panel modes — only one side panel is shown at a time
-const PANEL_MODE = {
-  REDACTION: 'redaction',
-  WHY_NOT:   'why_not',
-};
 
 export default function App() {
   // --- Theme ---
@@ -36,6 +30,23 @@ export default function App() {
 
   // --- Detection state ---
   const [spans,      setSpans]      = useState([]);
+
+  const augmentedSpans = useMemo(() => {
+    // Sort spans by startIndex to determine global order
+    const sorted = [...spans].sort((a, b) => a.startIndex - b.startIndex);
+    const typeCounts = {};
+    return sorted.map((span, idx) => {
+      const type = span.type;
+      if (!typeCounts[type]) typeCounts[type] = 0;
+      typeCounts[type]++;
+      return {
+        ...span,
+        globalIndex: idx + 1,
+        groupIndex: typeCounts[type]
+      };
+    });
+  }, [spans]);
+
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectError, setDetectError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -44,10 +55,9 @@ export default function App() {
   // --- Selection / reveal state ---
   const [selectedSpan, setSelectedSpan]   = useState(null);
   const [revealedIds,  setRevealedIds]    = useState(new Set());
-  const [panelMode,    setPanelMode]      = useState(PANEL_MODE.REDACTION);
 
   // --- Why-not / Manual Redaction state ---
-  const [selection,         setSelection]         = useState(null); // { text, startIndex, endIndex }
+  const [selection,         setSelection]         = useState(null); // { text, startIndex, endIndex, rect }
   const [whyNotExplanation, setWhyNotExplanation] = useState(null);
   const [isExplaining,      setIsExplaining]      = useState(false);
   const [explainError,      setExplainError]      = useState(null);
@@ -107,7 +117,6 @@ export default function App() {
     setDetectError(null);
     setWhyNotExplanation(null);
     setExplainError(null);
-    setPanelMode(PANEL_MODE.REDACTION);
     setIsDetecting(true);
 
     try {
@@ -132,10 +141,10 @@ export default function App() {
   // --- Click a redaction span ---
   const handleSpanClick = useCallback((span) => {
     setSelectedSpan(span);
-    setPanelMode(PANEL_MODE.REDACTION);
     // Clear why-not state when switching to a redaction
     setWhyNotExplanation(null);
     setExplainError(null);
+    setSelection(null);
   }, []);
 
   // --- Reveal / hide a span ---
@@ -193,7 +202,6 @@ export default function App() {
       setSelection(null);
       setWhyNotExplanation(null);
       setExplainError(null);
-      setPanelMode(PANEL_MODE.REDACTION);
       setIsDetecting(true);
 
       const result = await detectPII(uploadedDoc.text);
@@ -217,7 +225,6 @@ export default function App() {
     setWhyNotExplanation(null);
     setExplainError(null);
     setSelectedSpan(null);
-    setPanelMode(PANEL_MODE.WHY_NOT); // We'll keep this mode name but it renders SelectionPanel
   }, [currentDoc]);
 
   // --- Ask AI (from selection) ---
@@ -266,7 +273,6 @@ export default function App() {
     setSelection(null);
     setWhyNotExplanation(null);
     setExplainError(null);
-    setPanelMode(PANEL_MODE.REDACTION);
   }, []);
 
   // --- Drag and Drop Handlers ---
@@ -286,15 +292,15 @@ export default function App() {
     handleFileUpload(e);
   }, [handleFileUpload]);
 
-  const hasResults = currentDoc && spans.length > 0;
-  const canAnalyze = selectedDocId && !isDetecting;
+  const hasDocument = Boolean(currentDoc);
+  const canAnalyze = Boolean(selectedDocId && !isDetecting);
 
   return (
-    <div className="app">
+    <div className="app-container">
       {/* ── Header ── */}
       <header className="app-header">
         <div className="app-logo">
-          <div className="app-logo-icon">🔒</div>
+          <div className="app-logo-icon" style={{ display: 'none' }}></div>
           <span className="app-logo-name">Conseal</span>
           <span className="app-logo-badge">Trust & Explainability</span>
         </div>
@@ -325,7 +331,7 @@ export default function App() {
         {isDragging && (
           <div className="drag-overlay">
             <div className="drag-overlay-content">
-              <span style={{ fontSize: 40 }}>📄</span>
+              <span style={{ fontSize: 40 }}></span>
               <p>Drop file to upload</p>
             </div>
           </div>
@@ -337,13 +343,15 @@ export default function App() {
           <select
             id="doc-select"
             className="doc-picker-select"
-            value={selectedDocId}
-            onChange={e => setSelectedDocId(e.target.value)}
+            value={selectedDocId || ""}
+            onChange={e => {
+              setSelectedDocId(e.target.value);
+              setSpans([]);
+              setSelection(null);
+            }}
             disabled={isDetecting || isUploading}
           >
-            {docs.length === 0 && (
-              <option>Loading documents…</option>
-            )}
+            <option value="">-- Select a document --</option>
             {docs.map(doc => (
               <option key={doc.id} value={doc.id}>{doc.title}</option>
             ))}
@@ -357,6 +365,57 @@ export default function App() {
           >
             {isDetecting ? 'Analyzing…' : 'Analyze for PII'}
           </button>
+
+          {hasDocument && !isDetecting && (
+            <>
+              <button
+                className="btn-hide"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                style={{ 
+                  minWidth: 'auto', 
+                  padding: 'var(--space-2) var(--space-4)', 
+                  background: 'var(--color-surface-2)', 
+                  border: '1px solid var(--color-border)', 
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  color: 'var(--color-text-primary)',
+                  fontWeight: 'var(--weight-medium)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {isUploading ? 'Uploading...' : 'Upload File'}
+              </button>
+
+              <button
+                className="btn-clear"
+                onClick={() => {
+                  setSelectedDocId('');
+                  setSpans([]);
+                  setSelection(null);
+                  setCurrentDoc(null);
+                  setDetectError(null);
+                }}
+                disabled={isUploading || isDetecting}
+                style={{ 
+                  minWidth: 'auto', 
+                  padding: 'var(--space-2) var(--space-4)', 
+                  background: 'transparent', 
+                  border: '1px solid transparent', 
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  color: 'var(--color-text-muted)',
+                  fontWeight: 'var(--weight-medium)',
+                }}
+                onMouseEnter={(e) => { e.target.style.background = 'var(--color-surface-2)'; e.target.style.color = 'var(--color-text-primary)'; }}
+                onMouseLeave={(e) => { e.target.style.background = 'transparent'; e.target.style.color = 'var(--color-text-muted)'; }}
+              >
+                Close Document
+              </button>
+            </>
+          )}
           
           <input
             type="file"
@@ -367,9 +426,9 @@ export default function App() {
           />
         </div>
 
-        {/* Summary bar */}
-        {(isDetecting || hasResults) && (
-          <SummaryBar spans={spans} isLoading={isDetecting} />
+        {/* Summary bar when detecting */}
+        {isDetecting && (
+          <SummaryBar spans={spans} isLoading={true} />
         )}
 
         {/* Error State */}
@@ -387,13 +446,13 @@ export default function App() {
         )}
 
         {/* Empty state */}
-        {!isDetecting && !currentDoc && !detectError && (
+        {!isDetecting && !hasDocument && !detectError && (
           <div 
             className="state-empty" 
             onClick={() => fileInputRef.current?.click()}
             style={{ cursor: 'pointer' }}
           >
-            <span style={{ fontSize: 40 }}>📄</span>
+            <span style={{ fontSize: 40, display: 'none' }}></span>
             <p style={{ fontWeight: 'var(--weight-semibold)' }}>
               Drag and drop a file here, or click to upload
             </p>
@@ -404,12 +463,13 @@ export default function App() {
         )}
 
         {/* Workspace: document + resize handle + side panel */}
-        {hasResults && (
+        {hasDocument && !isDetecting && (
           <div className="workspace" ref={workspaceRef}>
-            <div style={{ width: `${docWidthPct}%`, minWidth: 280, flexShrink: 0 }}>
+            <div style={{ width: `${docWidthPct}%`, minWidth: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+              <SummaryBar spans={spans} isLoading={false} />
               <DocumentView
                 text={currentDoc.text}
-                spans={spans}
+                spans={augmentedSpans}
                 selectedSpanId={selectedSpan?.id ?? null}
                 revealedIds={revealedIds}
                 onSpanClick={handleSpanClick}
@@ -428,48 +488,32 @@ export default function App() {
 
             {/* Side panel */}
             <div className="side-panel" style={{ flex: 1, minWidth: 280 }}>
-              {panelMode === PANEL_MODE.REDACTION ? (
-                <RedactionPanel
-                  span={selectedSpan}
-                  revealedIds={revealedIds}
-                  onReveal={handleReveal}
-                  onHide={handleHide}
-                  onRemove={handleRemoveSpan}
-                />
-              ) : (
-                <SelectionPanel
-                  selection={selection}
-                  explanation={whyNotExplanation}
-                  isLoading={isExplaining}
-                  error={explainError}
-                  onClear={handleClearWhyNot}
-                  onAskExplain={handleAskExplain}
-                  onAddManualRedaction={handleAddManualSpan}
-                />
-              )}
-
-              {(selectedSpan || selection) && (
-                <div className="panel-tabs">
-                  <button
-                    id="tab-redaction"
-                    className={`panel-tab ${panelMode === PANEL_MODE.REDACTION ? 'tab-active' : ''}`}
-                    onClick={() => setPanelMode(PANEL_MODE.REDACTION)}
-                  >
-                    🔍 Redaction
-                  </button>
-                  <button
-                    id="tab-why-not"
-                    className={`panel-tab ${panelMode === PANEL_MODE.WHY_NOT ? 'tab-active' : ''}`}
-                    onClick={() => setPanelMode(PANEL_MODE.WHY_NOT)}
-                  >
-                    💬 Why Not?
-                  </button>
-                </div>
-              )}
+              <AllRedactionsPanel
+                spans={augmentedSpans}
+                selectedSpanId={selectedSpan?.id}
+                revealedIds={revealedIds}
+                onSpanClick={handleSpanClick}
+                onReveal={handleReveal}
+                onHide={handleHide}
+                onRemove={handleRemoveSpan}
+              />
             </div>
           </div>
         )}
       </main>
+
+      {/* Floating Selection Panel */}
+      {selection && selection.rect && (
+        <SelectionPanel
+          selection={selection}
+          explanation={whyNotExplanation}
+          isLoading={isExplaining}
+          error={explainError}
+          onClear={handleClearWhyNot}
+          onAskExplain={handleAskExplain}
+          onAddManualRedaction={handleAddManualSpan}
+        />
+      )}
     </div>
   );
 }

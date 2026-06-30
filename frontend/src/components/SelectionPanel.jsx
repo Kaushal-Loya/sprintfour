@@ -48,7 +48,7 @@ export default function SelectionPanel({
   if (!selection) {
     return (
       <div className="panel panel-empty panel-why-hint">
-        <div className="panel-empty-icon">💬</div>
+        <div className="panel-empty-icon" style={{ display: 'none' }}></div>
         <p className="panel-empty-title">Inspect or correct the AI</p>
         <p className="panel-empty-hint">
           Select any non-redacted text in the document. You can either ask the AI why it skipped it, or manually mark it as sensitive.
@@ -67,11 +67,28 @@ export default function SelectionPanel({
     setMode('menu'); // reset after save
   };
 
+  const isBottom = selection?.rect?.bottom > window.innerHeight - 300;
+
+  const popupStyle = selection?.rect ? {
+    position: 'fixed',
+    ...(isBottom 
+      ? { bottom: window.innerHeight - selection.rect.top + 8 }
+      : { top: selection.rect.bottom + 8 }
+    ),
+    left: selection.rect.left,
+    zIndex: 1000,
+    width: '320px',
+    boxShadow: 'var(--shadow-lg)',
+    border: '1px solid var(--color-border)',
+    maxHeight: '400px',
+    overflowY: 'auto'
+  } : {};
+
   return (
-    <div className="panel panel-why">
+    <div className="panel panel-why" style={popupStyle}>
       <div className="panel-header">
         <div className="panel-header-left">
-          <span className="panel-type-icon">💬</span>
+          <span className="panel-type-icon" style={{ display: 'none' }}></span>
           <div>
             <div className="panel-type-label">Text Selected</div>
           </div>
@@ -91,7 +108,11 @@ export default function SelectionPanel({
           <button className="btn-analyze" onClick={handleAskExplain}>
             Ask AI: Why wasn't this flagged?
           </button>
-          <button className="btn-hide" style={{ background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)' }} onClick={() => setMode('redact')}>
+          <button 
+            className="doc-picker-select" 
+            style={{ width: '100%', textAlign: 'center', minWidth: 'auto', background: 'var(--color-surface-2)', fontWeight: 'var(--weight-medium)', border: '1px solid var(--color-border)' }} 
+            onClick={() => setMode('redact')}
+          >
             Manually Redact (Missed PII)
           </button>
         </div>
@@ -131,7 +152,7 @@ export default function SelectionPanel({
 
           {error && !isLoading && (
             <div className="panel-warning panel-warning-low">
-              <span>⚠</span>
+              <span style={{ display: 'none' }}></span>
               <span>{error}</span>
             </div>
           )}
