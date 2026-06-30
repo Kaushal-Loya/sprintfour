@@ -70,9 +70,10 @@ Rules:
 1. Be honest about uncertainty — give lower confidence (0.4–0.6) when unsure, and say why.
 2. ALWAYS flag Tier 1 PII. Never skip names, SSNs, emails, phones, addresses, or account/policy numbers linked to a person. Assign confidence 0.9–1.0 for these.
 3. Flag Tier 2 (ORG, JOB_TITLE) when they appear in a personal document context. You MUST flag EVERY occurrence of the organization name and job title, including in the signature block or header. Assign confidence 0.7–0.8 for these to place them in the Medium confidence band.
-4. Do NOT flag: generic time durations ("30-day window"), procedural dates not linked to a person's identity, generic prices unlinked to an individual, or State names when used as a legal jurisdiction (e.g. "California employment law").
-5. startIndex and endIndex MUST match the exact "text" substring in the document. Verify before returning.
-6. Return ONLY the JSON array — no markdown, no explanation, no code fences.
+4. Flag partial PII (e.g. the last 4 digits of a Social Security Number or account number like "7741") when explicitly identified in the text. Assign lower confidence (0.4–0.6) for partial identifiers.
+5. Do NOT flag: generic time durations ("30-day window"), procedural dates not linked to a person's identity, generic prices unlinked to an individual, or State names when used as a legal jurisdiction (e.g. "California employment law").
+6. startIndex and endIndex MUST match the exact "text" substring in the document. Verify before returning.
+7. Return ONLY the JSON array — no markdown, no explanation, no code fences.
 
 Document:
 """
