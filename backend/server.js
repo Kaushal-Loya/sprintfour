@@ -13,7 +13,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors({ origin: "http://localhost:5173" })); // Vite dev server
+app.use(cors()); // Allow all origins for the deployed frontend to connect
 app.use(express.json({ limit: "1mb" }));
 
 // Routes
