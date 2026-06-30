@@ -6,6 +6,8 @@ import SummaryBar     from './components/SummaryBar.jsx'
 import DocumentView   from './components/DocumentView.jsx'
 import AllRedactionsPanel from './components/AllRedactionsPanel.jsx'
 import SelectionPanel from './components/SelectionPanel.jsx'
+import ExportMenu from './components/ExportMenu.jsx'
+import { exportToPDF, exportToDocx } from './utils/exportUtils.js'
 
 export default function App() {
   // --- Theme ---
@@ -292,6 +294,20 @@ export default function App() {
     handleFileUpload(e);
   }, [handleFileUpload]);
 
+  // --- Export Handlers ---
+  const handleExportPDF = useCallback(() => {
+    if (!currentDoc) return;
+    const documentViewEl = document.querySelector('.document-view');
+    if (documentViewEl) {
+      exportToPDF(documentViewEl, `${currentDoc.title.replace(/\.[^/.]+$/, "")}_redacted.pdf`);
+    }
+  }, [currentDoc]);
+
+  const handleExportDocx = useCallback(() => {
+    if (!currentDoc) return;
+    exportToDocx(currentDoc.text, spans, `${currentDoc.title.replace(/\.[^/.]+$/, "")}_redacted.docx`);
+  }, [currentDoc, spans]);
+
   const hasDocument = Boolean(currentDoc);
   const canAnalyze = Boolean(selectedDocId && !isDetecting);
 
@@ -414,6 +430,14 @@ export default function App() {
               >
                 Close Document
               </button>
+
+              <div style={{ marginLeft: 'auto' }}>
+                <ExportMenu 
+                  onExportPDF={handleExportPDF} 
+                  onExportDocx={handleExportDocx} 
+                  disabled={isUploading || isDetecting} 
+                />
+              </div>
             </>
           )}
           
