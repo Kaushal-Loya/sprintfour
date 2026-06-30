@@ -46,6 +46,17 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error." });
 });
 
+// Self-ping to keep Render free tier awake
+const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
+if (RENDER_EXTERNAL_URL) {
+  // Ping every 14 minutes (Render sleeps after 15 mins of inactivity)
+  setInterval(() => {
+    fetch(`${RENDER_EXTERNAL_URL}/api/health`)
+      .then(res => console.log(`[KeepAwake] Pinged ${RENDER_EXTERNAL_URL} - Status: ${res.status}`))
+      .catch(err => console.error(`[KeepAwake] Ping failed:`, err.message));
+  }, 14 * 60 * 1000);
+}
+
 app.listen(PORT, () => {
   console.log(`\n✅ Conseal backend running on http://localhost:${PORT}`);
   console.log(`   API key set: ${!!process.env.GROQ_API_KEY}`);
