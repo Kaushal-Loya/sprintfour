@@ -7,6 +7,7 @@ import express from "express";
 import cors from "cors";
 import detectRouter from "./routes/detect.js";
 import explainRouter from "./routes/explain.js";
+import uploadRouter from "./routes/upload.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,6 +19,7 @@ app.use(express.json({ limit: "1mb" }));
 // Routes
 app.use("/api/detect", detectRouter);
 app.use("/api/explain", explainRouter);
+app.use("/api/upload", uploadRouter);
 
 // Sample doc routes live under /api/detect/docs (see detect.js)
 

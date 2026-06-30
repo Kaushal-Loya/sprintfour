@@ -27,6 +27,23 @@ export async function fetchDoc(docId) {
 }
 
 /**
+ * Upload a document to extract text.
+ * @param {File} file
+ * @returns {Promise<{ id: string, title: string, text: string }>}
+ */
+export async function uploadDoc(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE}/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to upload document.');
+  return data;
+}
+
+/**
  * Run PII detection on a document text.
  * @param {string} text
  * @returns {Promise<{ spans: PIISpan[], meta: object }>}

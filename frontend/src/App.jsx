@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
 
-import { fetchDocs, fetchDoc, detectPII, explainSelection } from './api/client.js'
+import { fetchDocs, fetchDoc, detectPII, explainSelection, uploadDoc } from './api/client.js'
 import SummaryBar     from './components/SummaryBar.jsx'
 import DocumentView   from './components/DocumentView.jsx'
 import RedactionPanel from './components/RedactionPanel.jsx'
@@ -34,6 +34,8 @@ export default function App() {
   const [spans,      setSpans]      = useState([]);
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectError, setDetectError] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   // --- Selection / reveal state ---
   const [selectedSpan, setSelectedSpan]   = useState(null);
@@ -144,6 +146,51 @@ export default function App() {
     });
   }, []);
 
+  // --- Upload Document ---
+  const handleFileUpload = useCallback(async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Reset file input so we can upload the same file again if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    setIsUploading(true);
+    setDetectError(null);
+
+    try {
+      const uploadedDoc = await uploadDoc(file);
+      // Prepend to docs list
+      setDocs(prev => [uploadedDoc, ...prev]);
+      // Select it and trigger analyze
+      setSelectedDocId(uploadedDoc.id);
+      setCurrentDoc(uploadedDoc);
+      // Let the useEffect handle the text selection, but we want to immediately analyze
+      
+      // Clear old state
+      setSpans([]);
+      setSelectedSpan(null);
+      setRevealedIds(new Set());
+      setWhyNotText(null);
+      setWhyNotExplanation(null);
+      setExplainError(null);
+      setPanelMode(PANEL_MODE.REDACTION);
+      setIsDetecting(true);
+
+      const result = await detectPII(uploadedDoc.text);
+      setSpans(result.spans);
+      if (result.meta?.droppedInvalidOrOverlapping > 0) {
+        console.info(`[detection] ${result.meta.droppedInvalidOrOverlapping} spans dropped`);
+      }
+    } catch (err) {
+      setDetectError(err.message);
+    } finally {
+      setIsUploading(false);
+      setIsDetecting(false);
+    }
+  }, []);
+
   // --- Text selection → "why wasn't this flagged?" ---
   const handleTextSelection = useCallback(async (selected) => {
     if (!currentDoc) return;
@@ -206,13 +253,13 @@ export default function App() {
 
         {/* Document picker */}
         <div className="doc-picker">
-          <span className="doc-picker-label">Sample document:</span>
+          <span className="doc-picker-label">Select Document:</span>
           <select
             id="doc-select"
             className="doc-picker-select"
             value={selectedDocId}
             onChange={e => setSelectedDocId(e.target.value)}
-            disabled={isDetecting}
+            disabled={isDetecting || isUploading}
           >
             {docs.length === 0 && (
               <option>Loading documents…</option>
@@ -226,9 +273,25 @@ export default function App() {
             id="analyze-btn"
             className="btn-analyze"
             onClick={handleAnalyze}
-            disabled={!canAnalyze}
+            disabled={!canAnalyze || isUploading}
           >
             {isDetecting ? 'Analyzing…' : 'Analyze for PII'}
+          </button>
+          
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleFileUpload}
+            accept=".pdf,.docx,.txt,.md"
+          />
+          <button
+            className="btn-analyze"
+            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' }}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading || isDetecting}
+          >
+            {isUploading ? 'Uploading…' : 'Upload File'}
           </button>
         </div>
 
@@ -237,15 +300,17 @@ export default function App() {
           <SummaryBar spans={spans} isLoading={isDetecting} />
         )}
 
-        {/* Detection error */}
-        {detectError && !isDetecting && (
+        {/* Error State */}
+        {detectError && !isDetecting && !isUploading && (
           <div className="state-error" role="alert">
             <span>⚠</span>
-            <strong>Detection failed</strong>
+            <strong>{detectError.includes('upload') ? 'Upload failed' : 'Detection failed'}</strong>
             <p>{detectError}</p>
-            <p style={{ fontSize: 'var(--text-xs)', opacity: 0.7 }}>
-              Check that your GEMINI_API_KEY is set and the backend is running.
-            </p>
+            {!detectError.includes('upload') && !detectError.includes('404') && (
+              <p style={{ fontSize: 'var(--text-xs)', opacity: 0.7 }}>
+                Check that your GEMINI_API_KEY is set and the backend is running.
+              </p>
+            )}
           </div>
         )}
 

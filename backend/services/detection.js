@@ -27,6 +27,7 @@ const VALID_PII_TYPES = [
   "DATE_OF_BIRTH",
   "ACCOUNT_NUMBER",
   "FINANCIAL",
+  "URL",
   // Contextual PII — indirectly identifying / quasi-identifiers
   "ORG",
   "JOB_TITLE",
@@ -51,6 +52,7 @@ Use these types for high-sensitivity data:
 - DATE_OF_BIRTH: Birthdates when explicitly labeled as such
 - ACCOUNT_NUMBER: Policy numbers, member IDs, account numbers, reference numbers that are EXPLICITLY linked to a named individual (e.g. "your policy number is HX-8821-99", "your account ID is ACC-442"). Flag these even if they look like codes.
 - FINANCIAL: Salary, compensation, personal income figures tied to an identified individual (e.g. "$145,000 per year")
+- URL: Personal website links, portfolio URLs, social media handles (e.g. "kaushalloya.in", "LinkedIn", "GitHub")
 
 ## TIER 2 — Contextual PII (quasi-identifiers, indirectly identifying)
 Use these types for information that narrows down identity when combined with other data:
@@ -60,7 +62,7 @@ Use these types for information that narrows down identity when combined with ot
 
 For each PII span found, return:
 - "text": the exact substring as it appears in the document
-- "type": one of PERSON_NAME, EMAIL, PHONE, SSN, ADDRESS, DATE_OF_BIRTH, ACCOUNT_NUMBER, FINANCIAL, ORG, JOB_TITLE, OTHER
+- "type": one of PERSON_NAME, EMAIL, PHONE, SSN, ADDRESS, DATE_OF_BIRTH, ACCOUNT_NUMBER, FINANCIAL, URL, ORG, JOB_TITLE, OTHER
 - "startIndex": character index where this text starts (0-based)
 - "endIndex": character index where this text ends (exclusive, like slice)
 - "confidence": 0–1, how confident you are this is PII of that type
