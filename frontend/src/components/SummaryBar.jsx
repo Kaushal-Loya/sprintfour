@@ -79,6 +79,8 @@ function formatType(type) {
     ADDRESS: 'Address',
     DATE_OF_BIRTH: 'DOB',
     ORG: 'Org',
+    ACCOUNT_NUMBER: 'Acct#',
+    FINANCIAL: 'Financial',
     OTHER: 'Other',
   };
   return map[type] || type;

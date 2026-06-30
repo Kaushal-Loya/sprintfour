@@ -162,6 +162,8 @@ function formatType(type) {
     ADDRESS:     'Address',
     DATE_OF_BIRTH: 'DOB',
     ORG:         'Org',
+    ACCOUNT_NUMBER: 'Acct#',
+    FINANCIAL:   '$$$',
     OTHER:       'PII',
   };
   return map[type] || type;

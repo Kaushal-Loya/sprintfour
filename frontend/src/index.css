@@ -6,37 +6,38 @@
 /* --- Google Fonts are loaded in index.html --- */
 @import './styles/components.css';
 
-/* ---- Design Tokens ---- */
-:root {
+/* ---- Design Tokens: Dark Theme (Black & Gold) ---- */
+:root,
+[data-theme="dark"] {
   /* Base palette */
-  --color-bg:            #0d0f14;
-  --color-surface:       #13161e;
-  --color-surface-2:     #1a1e2a;
-  --color-surface-3:     #21263a;
-  --color-border:        #2a2f40;
-  --color-border-subtle: #1e2231;
+  --color-bg:            #080705;
+  --color-surface:       #0f0d09;
+  --color-surface-2:     #17140c;
+  --color-surface-3:     #201b10;
+  --color-border:        #2e2710;
+  --color-border-subtle: #1c1809;
 
   /* Text */
-  --color-text-primary:   #e8eaf0;
-  --color-text-secondary: #8a90a0;
-  --color-text-muted:     #565c70;
-  --color-text-inverse:   #0d0f14;
+  --color-text-primary:   #f0e6c8;
+  --color-text-secondary: #9a8a60;
+  --color-text-muted:     #5c5030;
+  --color-text-inverse:   #080705;
 
-  /* Brand accent */
-  --color-accent:         #6c8aff;
-  --color-accent-dim:     rgba(108, 138, 255, 0.15);
-  --color-accent-hover:   #8aa3ff;
+  /* Gold accent */
+  --color-accent:         #d4a017;
+  --color-accent-dim:     rgba(212, 160, 23, 0.15);
+  --color-accent-hover:   #e8b52a;
 
-  /* Confidence bands — the heart of the trust UI */
-  --color-high:           #34d399;   /* ≥0.85 — green */
+  /* Confidence bands */
+  --color-high:           #34d399;
   --color-high-bg:        rgba(52, 211, 153, 0.12);
   --color-high-border:    rgba(52, 211, 153, 0.3);
 
-  --color-medium:         #fbbf24;   /* 0.60–0.85 — amber */
-  --color-medium-bg:      rgba(251, 191, 36, 0.12);
-  --color-medium-border:  rgba(251, 191, 36, 0.3);
+  --color-medium:         #f59e0b;
+  --color-medium-bg:      rgba(245, 158, 11, 0.12);
+  --color-medium-border:  rgba(245, 158, 11, 0.3);
 
-  --color-low:            #f87171;   /* <0.60 — red, visually distinct */
+  --color-low:            #f87171;
   --color-low-bg:         rgba(248, 113, 113, 0.12);
   --color-low-border:     rgba(248, 113, 113, 0.35);
 
@@ -44,17 +45,82 @@
   --color-error:          #f87171;
   --color-error-bg:       rgba(248, 113, 113, 0.1);
   --color-success:        #34d399;
-  --color-revealed:       rgba(251, 191, 36, 0.08);
+  --color-revealed:       rgba(212, 160, 23, 0.1);
 
   /* Redaction pill colors */
   --redact-high-bg:       rgba(52, 211, 153, 0.18);
   --redact-high-text:     #34d399;
-  --redact-medium-bg:     rgba(251, 191, 36, 0.18);
-  --redact-medium-text:   #fbbf24;
+  --redact-medium-bg:     rgba(245, 158, 11, 0.18);
+  --redact-medium-text:   #f59e0b;
   --redact-low-bg:        rgba(248, 113, 113, 0.2);
   --redact-low-text:      #f87171;
   --redact-selected-ring: 0 0 0 2px var(--color-accent);
 
+  /* Shadows */
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.6);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.7);
+  --shadow-lg:   0 8px 32px rgba(0,0,0,0.8);
+  --shadow-panel:0 0 0 1px var(--color-border), 0 8px 32px rgba(0,0,0,0.7);
+}
+
+/* ---- Design Tokens: Light Theme (Warm Ivory & Gold) ---- */
+[data-theme="light"] {
+  /* Base palette */
+  --color-bg:            #faf7f0;
+  --color-surface:       #ffffff;
+  --color-surface-2:     #f5f0e8;
+  --color-surface-3:     #ede8de;
+  --color-border:        #d9cebc;
+  --color-border-subtle: #e8e0d0;
+
+  /* Text */
+  --color-text-primary:   #1a1208;
+  --color-text-secondary: #6b5b40;
+  --color-text-muted:     #9c8a6a;
+  --color-text-inverse:   #faf7f0;
+
+  /* Gold accent */
+  --color-accent:         #b8860b;
+  --color-accent-dim:     rgba(184, 134, 11, 0.12);
+  --color-accent-hover:   #9a6f09;
+
+  /* Confidence bands */
+  --color-high:           #059669;
+  --color-high-bg:        rgba(5, 150, 105, 0.1);
+  --color-high-border:    rgba(5, 150, 105, 0.25);
+
+  --color-medium:         #d97706;
+  --color-medium-bg:      rgba(217, 119, 6, 0.1);
+  --color-medium-border:  rgba(217, 119, 6, 0.25);
+
+  --color-low:            #dc2626;
+  --color-low-bg:         rgba(220, 38, 38, 0.08);
+  --color-low-border:     rgba(220, 38, 38, 0.25);
+
+  /* Status */
+  --color-error:          #dc2626;
+  --color-error-bg:       rgba(220, 38, 38, 0.08);
+  --color-success:        #059669;
+  --color-revealed:       rgba(184, 134, 11, 0.08);
+
+  /* Redaction pill colors */
+  --redact-high-bg:       rgba(5, 150, 105, 0.12);
+  --redact-high-text:     #047857;
+  --redact-medium-bg:     rgba(217, 119, 6, 0.12);
+  --redact-medium-text:   #b45309;
+  --redact-low-bg:        rgba(220, 38, 38, 0.1);
+  --redact-low-text:      #b91c1c;
+  --redact-selected-ring: 0 0 0 2px var(--color-accent);
+
+  /* Shadows */
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.12);
+  --shadow-lg:   0 8px 32px rgba(0,0,0,0.16);
+  --shadow-panel:0 0 0 1px var(--color-border), 0 8px 32px rgba(0,0,0,0.12);
+}
+
+/* ---- Static tokens (theme-independent) ---- */
+:root {
   /* Spacing */
   --space-1: 4px;
   --space-2: 8px;
@@ -93,12 +159,6 @@
   --radius-lg:   12px;
   --radius-xl:   16px;
   --radius-full: 9999px;
-
-  /* Shadows */
-  --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
-  --shadow-md:  0 4px 16px rgba(0,0,0,0.5);
-  --shadow-lg:  0 8px 32px rgba(0,0,0,0.6);
-  --shadow-panel: 0 0 0 1px var(--color-border), 0 8px 32px rgba(0,0,0,0.5);
 
   /* Transitions */
   --transition-fast:   120ms ease;

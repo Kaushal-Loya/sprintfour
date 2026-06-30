@@ -25,6 +25,8 @@ const VALID_PII_TYPES = [
   "ADDRESS",
   "DATE_OF_BIRTH",
   "ORG",
+  "ACCOUNT_NUMBER",
+  "FINANCIAL",
   "OTHER",
 ];
 
@@ -38,7 +40,7 @@ function buildDetectionPrompt(documentText) {
 
 For each PII span found, return an object with these exact fields:
 - "text": the exact substring as it appears in the document
-- "type": one of PERSON_NAME, EMAIL, PHONE, SSN, ADDRESS, DATE_OF_BIRTH, ORG, OTHER
+- "type": one of PERSON_NAME, EMAIL, PHONE, SSN, ADDRESS, DATE_OF_BIRTH, ORG, ACCOUNT_NUMBER, FINANCIAL, OTHER
 - "startIndex": the character index where this text starts in the document (0-based)
 - "endIndex": the character index where this text ends (exclusive, like slice)
 - "confidence": a number between 0 and 1 representing how confident you are this is PII
@@ -46,9 +48,11 @@ For each PII span found, return an object with these exact fields:
 
 Important rules:
 1. Be honest about uncertainty. If something looks like PII but you're not sure, give it a lower confidence (e.g. 0.4–0.6) and explain why in the reasoning.
-2. Do NOT flag generic dates (e.g. "30-day processing window"), company names, or policy/reference numbers as PII unless there is clear personal identification context.
-3. startIndex and endIndex must exactly match the "text" field as a substring of the document. Double-check this.
-4. Return ONLY the JSON array — no markdown, no explanation, no code fences.
+2. DO flag policy numbers, account numbers, member IDs, and reference numbers when they are explicitly linked to a specific individual in the document. Use type ACCOUNT_NUMBER.
+3. DO flag salary figures, compensation amounts, or personal financial data (e.g. "$145,000 per year") when they are explicitly tied to an identified individual in the document. Use type FINANCIAL. Do NOT flag general prices or company revenue figures.
+4. Do NOT flag generic dates used as timeframes, company/organization names, or job titles as PII.
+5. startIndex and endIndex must exactly match the "text" field as a substring of the document. Double-check this before returning.
+6. Return ONLY the JSON array — no markdown, no explanation, no code fences.
 
 Document:
 """

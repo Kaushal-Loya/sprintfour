@@ -15,6 +15,8 @@ const TYPE_LABELS = {
   ADDRESS:     'Physical Address',
   DATE_OF_BIRTH: 'Date of Birth',
   ORG:         'Organization',
+  ACCOUNT_NUMBER: 'Account / Policy Number',
+  FINANCIAL:   'Financial Information',
   OTHER:       'Other PII',
 };
 
@@ -26,6 +28,8 @@ const TYPE_ICONS = {
   ADDRESS:     '📍',
   DATE_OF_BIRTH: '🗓',
   ORG:         '🏢',
+  ACCOUNT_NUMBER: '🪪',
+  FINANCIAL:   '💰',
   OTHER:       '⚠️',
 };
 
