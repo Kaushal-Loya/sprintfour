@@ -41,9 +41,10 @@ const TYPE_ICONS = {
  *   revealedIds: Set<string>,
  *   onReveal: (id: string) => void,
  *   onHide: (id: string) => void,
+ *   onRemove: (id: string) => void,
  * }} props
  */
-export default function RedactionPanel({ span, revealedIds, onReveal, onHide }) {
+export default function RedactionPanel({ span, revealedIds, onReveal, onHide, onRemove }) {
   if (!span) {
     return (
       <div className="panel panel-empty">
@@ -127,6 +128,16 @@ export default function RedactionPanel({ span, revealedIds, onReveal, onHide }) 
             <span>👁</span> Reveal & Verify
           </button>
         )}
+
+        <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)' }}>
+          <button
+            className="btn-hide"
+            style={{ width: '100%', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)' }}
+            onClick={() => onRemove(span.id)}
+          >
+            Remove Redaction (False Positive)
+          </button>
+        </div>
       </div>
 
       {/* Meta */}

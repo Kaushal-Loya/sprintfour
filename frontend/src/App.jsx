@@ -5,7 +5,7 @@ import { fetchDocs, fetchDoc, detectPII, explainSelection, uploadDoc } from './a
 import SummaryBar     from './components/SummaryBar.jsx'
 import DocumentView   from './components/DocumentView.jsx'
 import RedactionPanel from './components/RedactionPanel.jsx'
-import WhyNotPanel    from './components/WhyNotPanel.jsx'
+import SelectionPanel from './components/SelectionPanel.jsx'
 
 // Panel modes — only one side panel is shown at a time
 const PANEL_MODE = {
@@ -42,8 +42,8 @@ export default function App() {
   const [revealedIds,  setRevealedIds]    = useState(new Set());
   const [panelMode,    setPanelMode]      = useState(PANEL_MODE.REDACTION);
 
-  // --- Why-not state ---
-  const [whyNotText,        setWhyNotText]        = useState(null);
+  // --- Why-not / Manual Redaction state ---
+  const [selection,         setSelection]         = useState(null); // { text, startIndex, endIndex }
   const [whyNotExplanation, setWhyNotExplanation] = useState(null);
   const [isExplaining,      setIsExplaining]      = useState(false);
   const [explainError,      setExplainError]      = useState(null);
@@ -146,6 +146,13 @@ export default function App() {
     });
   }, []);
 
+  const handleRemoveSpan = useCallback((id) => {
+    setSpans(prev => prev.filter(s => s.id !== id));
+    if (selectedSpan?.id === id) {
+      setSelectedSpan(null);
+    }
+  }, [selectedSpan]);
+
   // --- Upload Document ---
   const handleFileUpload = useCallback(async (e) => {
     const file = e.target.files[0];
@@ -172,7 +179,7 @@ export default function App() {
       setSpans([]);
       setSelectedSpan(null);
       setRevealedIds(new Set());
-      setWhyNotText(null);
+      setSelection(null);
       setWhyNotExplanation(null);
       setExplainError(null);
       setPanelMode(PANEL_MODE.REDACTION);
@@ -191,30 +198,61 @@ export default function App() {
     }
   }, []);
 
-  // --- Text selection → "why wasn't this flagged?" ---
-  const handleTextSelection = useCallback(async (selected) => {
+  // --- Text selection ---
+  const handleTextSelection = useCallback((newSelection) => {
     if (!currentDoc) return;
 
-    setWhyNotText(selected);
+    setSelection(newSelection);
     setWhyNotExplanation(null);
     setExplainError(null);
     setSelectedSpan(null);
-    setPanelMode(PANEL_MODE.WHY_NOT);
+    setPanelMode(PANEL_MODE.WHY_NOT); // We'll keep this mode name but it renders SelectionPanel
+  }, [currentDoc]);
+
+  // --- Ask AI (from selection) ---
+  const handleAskExplain = useCallback(async () => {
+    if (!currentDoc || !selection) return;
+
     setIsExplaining(true);
+    setExplainError(null);
 
     try {
-      const explanation = await explainSelection(currentDoc.text, selected);
+      const explanation = await explainSelection(currentDoc.text, selection.text);
       setWhyNotExplanation(explanation);
     } catch (err) {
       setExplainError(err.message);
     } finally {
       setIsExplaining(false);
     }
-  }, [currentDoc]);
+  }, [currentDoc, selection]);
 
-  // --- Clear why-not panel ---
+  // --- Add Manual Redaction ---
+  const handleAddManualSpan = useCallback((type) => {
+    if (!selection) return;
+
+    const newSpan = {
+      id: `manual_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      text: selection.text,
+      type: type,
+      startIndex: selection.startIndex,
+      endIndex: selection.endIndex,
+      confidence: 1.0, // Manual redactions are 100% confident
+      reasoning: "Manually added by user.",
+    };
+
+    setSpans(prev => {
+      // Add and sort by startIndex
+      const updated = [...prev, newSpan];
+      updated.sort((a, b) => a.startIndex - b.startIndex);
+      return updated;
+    });
+
+    handleClearWhyNot();
+  }, [selection]);
+
+  // --- Clear selection panel ---
   const handleClearWhyNot = useCallback(() => {
-    setWhyNotText(null);
+    setSelection(null);
     setWhyNotExplanation(null);
     setExplainError(null);
     setPanelMode(PANEL_MODE.REDACTION);
@@ -359,18 +397,21 @@ export default function App() {
                   revealedIds={revealedIds}
                   onReveal={handleReveal}
                   onHide={handleHide}
+                  onRemove={handleRemoveSpan}
                 />
               ) : (
-                <WhyNotPanel
-                  selectedText={whyNotText}
+                <SelectionPanel
+                  selection={selection}
                   explanation={whyNotExplanation}
                   isLoading={isExplaining}
                   error={explainError}
                   onClear={handleClearWhyNot}
+                  onAskExplain={handleAskExplain}
+                  onAddManualRedaction={handleAddManualSpan}
                 />
               )}
 
-              {(selectedSpan || whyNotText) && (
+              {(selectedSpan || selection) && (
                 <div className="panel-tabs">
                   <button
                     id="tab-redaction"

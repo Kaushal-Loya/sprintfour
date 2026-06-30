@@ -47,7 +47,18 @@ export default function DocumentView({
     let el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
     if (el.closest('[data-span-id]')) return; // inside a redaction — skip
 
-    onTextSelection(selected);
+    // Find the closest text segment element to get its global offset
+    const textSegmentEl = el.closest('.doc-text');
+    if (!textSegmentEl) return;
+    
+    const globalOffsetStr = textSegmentEl.getAttribute('data-offset');
+    if (globalOffsetStr == null) return;
+    
+    const globalOffset = parseInt(globalOffsetStr, 10);
+    const startIndex = globalOffset + Math.min(range.startOffset, range.endOffset);
+    const endIndex = globalOffset + Math.max(range.startOffset, range.endOffset);
+
+    onTextSelection({ text: selected, startIndex, endIndex });
   }, [onTextSelection]);
 
   return (
@@ -60,7 +71,7 @@ export default function DocumentView({
         {segments.map((seg, i) => {
           if (seg.type === 'text') {
             return (
-              <span key={i} className="doc-text">
+              <span key={i} className="doc-text" data-offset={seg.startIndex}>
                 {seg.content}
               </span>
             );
@@ -134,14 +145,14 @@ function buildSegments(text, spans) {
 
   for (const span of spans) {
     if (span.startIndex > cursor) {
-      segments.push({ type: 'text', content: text.slice(cursor, span.startIndex) });
+      segments.push({ type: 'text', content: text.slice(cursor, span.startIndex), startIndex: cursor });
     }
     segments.push({ type: 'span', span });
     cursor = span.endIndex;
   }
 
   if (cursor < text.length) {
-    segments.push({ type: 'text', content: text.slice(cursor) });
+    segments.push({ type: 'text', content: text.slice(cursor), startIndex: cursor });
   }
 
   return segments;
