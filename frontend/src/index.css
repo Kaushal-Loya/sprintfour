@@ -4,6 +4,7 @@
    ============================================================ */
 
 /* --- Google Fonts are loaded in index.html --- */
+@import './styles/components.css';
 
 /* ---- Design Tokens ---- */
 :root {
