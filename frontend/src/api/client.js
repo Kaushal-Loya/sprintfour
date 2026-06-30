@@ -30,7 +30,7 @@ export async function fetchDoc(docId) {
 /**
  * Upload a document to extract text.
  * @param {File} file
- * @returns {Promise<{ id: string, title: string, text: string }>}
+ * @returns {Promise<{ id: string, title: string, text: string, wordBoxes?: Array<any>, pages?: Array<any>, isImagePDF?: boolean }>}
  */
 export async function uploadDoc(file) {
   const formData = new FormData();
@@ -85,4 +85,28 @@ export async function explainSelection(documentText, selectedText) {
   }
 
   return data.explanation;
+}
+
+/**
+ * Export a PDF with real PyMuPDF redactions burned in.
+ * @param {File} pdfFile - The original uploaded PDF File object
+ * @param {Array} spans - Span array with action field (redact/anonymous/keep-visible)
+ * @returns {Promise<Blob>} - The redacted PDF as a Blob
+ */
+export async function exportPDF(pdfFile, spans) {
+  const formData = new FormData();
+  formData.append('file', pdfFile, pdfFile.name);
+  formData.append('spans', JSON.stringify(spans));
+
+  const res = await fetch(`${BASE}/export/pdf`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'PDF export failed.');
+  }
+
+  return res.blob();
 }

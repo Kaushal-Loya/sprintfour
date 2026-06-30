@@ -12,7 +12,6 @@ import { useRef, useCallback, useEffect } from 'react';
  *   text: string,
  *   spans: PIISpan[],
  *   selectedSpanId: string | null,
- *   revealedIds: Set<string>,
  *   onSpanClick: (span: PIISpan) => void,
  *   onTextSelection: (selectedText: string) => void,
  * }} props
@@ -21,7 +20,6 @@ export default function DocumentView({
   text,
   spans,
   selectedSpanId,
-  revealedIds,
   onSpanClick,
   onTextSelection,
 }) {
@@ -99,25 +97,46 @@ export default function DocumentView({
 
           // PII span
           const span = seg.span;
-          const isSelected = span.id === selectedSpanId;
-          const isRevealed = revealedIds.has(span.id);
+          const isSelected  = span.id === selectedSpanId;
+          const action       = span.action ?? null;
+          const isKeepVisible = action === 'keep-visible';
+          const isAnonymous   = action === 'anonymous';
           const band = getConfidenceBand(span.confidence);
 
-          if (isRevealed) {
+          // keep-visible: show original text with a subtle green underline
+          if (isKeepVisible) {
             return (
               <span
                 key={i}
                 data-span-id={span.id}
-                className={`doc-span doc-span-revealed band-${band}`}
+                className="doc-span doc-span-visible"
                 onClick={() => onSpanClick(span)}
-                title={`${span.type} — ${Math.round(span.confidence * 100)}% confidence (revealed)`}
+                title={`${span.type} — kept visible`}
               >
                 {span.text}
-                <span className="span-revealed-indicator" title="Text revealed for verification"></span>
               </span>
             );
           }
 
+          // anonymous: show [TYPE] in purple pill
+          if (isAnonymous) {
+            return (
+              <span
+                key={i}
+                data-span-id={span.id}
+                className={`doc-span doc-span-anonymous ${isSelected ? 'span-selected' : ''}`}
+                onClick={() => onSpanClick(span)}
+                title={`${span.type} — will export as label`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && onSpanClick(span)}
+              >
+                <span className="span-label">{formatAnonLabel(span.type)}</span>
+              </span>
+            );
+          }
+
+          // default: redacted pill (same as before, action = 'redact' or null)
           return (
             <span
               key={i}
@@ -202,4 +221,22 @@ function formatType(type) {
     OTHER:       'PII',
   };
   return map[type] || type;
+}
+
+function formatAnonLabel(type) {
+  const map = {
+    PERSON_NAME:    '[NAME]',
+    EMAIL:          '[EMAIL]',
+    PHONE:          '[PHONE]',
+    SSN:            '[SSN]',
+    ADDRESS:        '[ADDRESS]',
+    DATE_OF_BIRTH:  '[DOB]',
+    ORG:            '[ORG]',
+    JOB_TITLE:      '[ROLE]',
+    ACCOUNT_NUMBER: '[ACCOUNT]',
+    FINANCIAL:      '[FINANCIAL]',
+    URL:            '[URL]',
+    OTHER:          '[REDACTED]',
+  };
+  return map[type] || '[REDACTED]';
 }

@@ -279,3 +279,84 @@ body, .app-header, .panel, .document-view, .summary-bar {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Export Diff Panel */
+.export-diff-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  max-height: 70vh;
+}
+
+.export-diff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+}
+
+.diff-tab {
+  background: transparent;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.diff-tab-active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.diff-copy-btn {
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.export-diff-content {
+  padding: var(--space-4);
+  overflow-y: auto;
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.diff-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.diff-text-mono {
+  font-family: monospace;
+}
+
+.diff-removed {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #b91c1c;
+  text-decoration: line-through;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.diff-added {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #047857;
+  padding: 0 2px;
+  border-radius: 2px;
+}

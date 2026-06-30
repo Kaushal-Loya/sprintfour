@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-export default function ExportMenu({ onExportPDF, onExportDocx, disabled }) {
+export default function ExportMenu({ onExportPDF, onExportDocx, allReviewed, unreviewedCount }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -24,20 +24,18 @@ export default function ExportMenu({ onExportPDF, onExportDocx, disabled }) {
       <button
         className="btn-export"
         onClick={() => setIsOpen(!isOpen)}
-        disabled={disabled}
         style={{
           minWidth: 'auto', 
           padding: 'var(--space-2) var(--space-4)', 
           background: 'var(--color-surface-2)', 
           border: '1px solid var(--color-border)', 
           borderRadius: 'var(--radius-md)',
-          cursor: disabled ? 'not-allowed' : 'pointer',
+          cursor: 'pointer',
           color: 'var(--color-text-primary)',
           fontWeight: 'var(--weight-medium)',
           display: 'flex',
           alignItems: 'center',
-          gap: '6px',
-          opacity: disabled ? 0.6 : 1
+          gap: '6px'
         }}
       >
         Export
@@ -54,12 +52,26 @@ export default function ExportMenu({ onExportPDF, onExportDocx, disabled }) {
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)',
           boxShadow: 'var(--shadow-lg)',
-          minWidth: '150px',
+          minWidth: '200px',
           zIndex: 1000,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden'
         }}>
+          {!allReviewed && (
+            <div style={{
+              padding: '10px 16px',
+              background: 'rgba(245, 158, 11, 0.1)',
+              borderBottom: '1px solid var(--color-border)',
+              color: 'var(--color-warning, #f59e0b)',
+              fontSize: '11px',
+              lineHeight: '1.4'
+            }}>
+              ⚠ {unreviewedCount} span{unreviewedCount > 1 ? 's' : ''} unreviewed.<br/>
+              They will be redacted by default.
+            </div>
+          )}
+
           <button 
             onClick={() => {
               setIsOpen(false);

@@ -1,13 +1,17 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import './App.css'
 
-import { fetchDocs, fetchDoc, detectPII, explainSelection, uploadDoc } from './api/client.js'
-import SummaryBar     from './components/SummaryBar.jsx'
-import DocumentView   from './components/DocumentView.jsx'
-import AllRedactionsPanel from './components/AllRedactionsPanel.jsx'
-import SelectionPanel from './components/SelectionPanel.jsx'
-import ExportMenu from './components/ExportMenu.jsx'
-import { exportToPDF, exportToDocx } from './utils/exportUtils.js'
+import { fetchDocs, fetchDoc, detectPII, uploadDoc, explainSelection, exportPDF } from './api/client.js';
+import { renderPDFPages } from './utils/pdfUtils.js';
+import { exportToPDF, exportToDocx, buildRedactedText } from './utils/exportUtils.js';
+import SummaryBar from './components/SummaryBar.jsx';
+import DocumentView from './components/DocumentView.jsx';
+import ImageDocumentView from './components/ImageDocumentView.jsx';
+import AllRedactionsPanel from './components/AllRedactionsPanel.jsx';
+import ProgressBar from './components/ProgressBar.jsx';
+import ExportDiffPanel from './components/ExportDiffPanel.jsx';
+import SelectionPanel      from './components/SelectionPanel.jsx'
+import ExportMenu          from './components/ExportMenu.jsx'
 
 export default function App() {
   // --- Theme ---
@@ -28,11 +32,38 @@ export default function App() {
   // --- Document state ---
   const [docs,       setDocs]       = useState([]);
   const [selectedDocId, setSelectedDocId] = useState('');
-  const [currentDoc, setCurrentDoc] = useState(null); // { id, title, text }
-
+  
   // --- Detection state ---
-  const [spans,      setSpans]      = useState([]);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectError, setDetectError] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
+  // --- Image PDF state (Aadhaar / scanned docs) ---
+  const [pdfPages,  setPdfPages]  = useState([]); // [{ dataUrl, width, height }]
+  const [wordBoxes, setWordBoxes] = useState([]); // per-word pixel bboxes  // -- Active Analysis --
+  const [currentDoc, setCurrentDoc] = useState(null);
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [spans, setSpans] = useState([]);
+  const [selectedSpan, setSelectedSpan] = useState(null);
+  const [diffPanel, setDiffPanel] = useState(null);
+  const [isOcring,  setIsOcring]  = useState(false);
+
+  // --- Why-not / Manual Redaction state ---
+  const [selection,         setSelection]         = useState(null); // { text, startIndex, endIndex, rect }
+  const [whyNotExplanation, setWhyNotExplanation] = useState(null);
+  const [isExplaining,      setIsExplaining]      = useState(false);
+  const [explainError,      setExplainError]      = useState(null);
+
+  // --- Drag and Drop State ---
+  const [isDragging, setIsDragging] = useState(false);
+
+  // --- Resize state ---
+  const [docWidthPct, setDocWidthPct] = useState(65); // percent of workspace
+  const workspaceRef = useRef(null);
+  const isResizing   = useRef(false);
+
+  // --- Augment spans with global/group indexes ---
   const augmentedSpans = useMemo(() => {
     // Sort spans by startIndex to determine global order
     const sorted = [...spans].sort((a, b) => a.startIndex - b.startIndex);
@@ -49,28 +80,11 @@ export default function App() {
     });
   }, [spans]);
 
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [detectError, setDetectError] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef(null);
-
-  // --- Selection / reveal state ---
-  const [selectedSpan, setSelectedSpan]   = useState(null);
-  const [revealedIds,  setRevealedIds]    = useState(new Set());
-
-  // --- Why-not / Manual Redaction state ---
-  const [selection,         setSelection]         = useState(null); // { text, startIndex, endIndex, rect }
-  const [whyNotExplanation, setWhyNotExplanation] = useState(null);
-  const [isExplaining,      setIsExplaining]      = useState(false);
-  const [explainError,      setExplainError]      = useState(null);
-
-  // --- Drag and Drop State ---
-  const [isDragging, setIsDragging] = useState(false);
-
-  // --- Resize state ---
-  const [docWidthPct, setDocWidthPct] = useState(65); // percent of workspace
-  const workspaceRef = useRef(null);
-  const isResizing   = useRef(false);
+  // -- Derived progress metrics --
+  const totalCount = spans.length;
+  const reviewedCount = spans.filter(s => s.status !== 'unreviewed').length;
+  const unreviewedCount = totalCount - reviewedCount;
+  const allReviewed = totalCount > 0 && reviewedCount === totalCount;
 
   const handleResizeMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -115,7 +129,6 @@ export default function App() {
     setCurrentDoc(null);
     setSpans([]);
     setSelectedSpan(null);
-    setRevealedIds(new Set());
     setDetectError(null);
     setWhyNotExplanation(null);
     setExplainError(null);
@@ -124,9 +137,10 @@ export default function App() {
     try {
       const doc = await fetchDoc(selectedDocId);
       setCurrentDoc(doc);
+      setUploadedFile(null); // Not a local upload
 
       const result = await detectPII(doc.text);
-      setSpans(result.spans);
+      setSpans(result.spans.map(s => ({ ...s, status: 'unreviewed', action: null })));
 
       if (result.meta.droppedInvalidOrOverlapping > 0) {
         console.info(
@@ -149,17 +163,24 @@ export default function App() {
     setSelection(null);
   }, []);
 
-  // --- Reveal / hide a span ---
-  const handleReveal = useCallback((id) => {
-    setRevealedIds(prev => new Set([...prev, id]));
+  const handleUpdateSpan = useCallback((id, patch) => {
+    setSpans(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
   }, []);
 
-  const handleHide = useCallback((id) => {
-    setRevealedIds(prev => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
+  const handleNextUnreviewed = useCallback(() => {
+    const unreviewed = spans.filter(s => s.status === 'unreviewed').sort((a, b) => a.confidence - b.confidence);
+    if (unreviewed.length > 0) {
+      setSelectedSpan(unreviewed[0]);
+    }
+  }, [spans]);
+
+  const handleConfirmHighConfidence = useCallback(() => {
+    setSpans(prev => prev.map(s => {
+      if (s.confidence >= 0.85 && s.status === 'unreviewed') {
+        return { ...s, status: 'confirmed', action: 'redact' };
+      }
+      return s;
+    }));
   }, []);
 
   const handleRemoveSpan = useCallback((id) => {
@@ -188,33 +209,59 @@ export default function App() {
     setIsUploading(true);
     setDetectError(null);
 
+    // Clear all previous state
+    setSpans([]);
+    setSelectedSpan(null);
+    setSelection(null);
+    setWhyNotExplanation(null);
+    setExplainError(null);
+    setPdfPages([]);
+    setWordBoxes([]);
+
     try {
       const uploadedDoc = await uploadDoc(file);
-      // Prepend to docs list
+      setUploadedFile(file);
+      // Prepend to docs list and select
       setDocs(prev => [uploadedDoc, ...prev]);
-      // Select it and trigger analyze
       setSelectedDocId(uploadedDoc.id);
-      setCurrentDoc(uploadedDoc);
-      // Let the useEffect handle the text selection, but we want to immediately analyze
-      
-      // Clear old state
-      setSpans([]);
-      setSelectedSpan(null);
-      setRevealedIds(new Set());
-      setSelection(null);
-      setWhyNotExplanation(null);
-      setExplainError(null);
-      setIsDetecting(true);
 
-      const result = await detectPII(uploadedDoc.text);
-      setSpans(result.spans);
-      if (result.meta?.droppedInvalidOrOverlapping > 0) {
-        console.info(`[detection] ${result.meta.droppedInvalidOrOverlapping} spans dropped`);
+      if (uploadedDoc.isImagePDF) {
+        // ── Image PDF path (All PDFs now have wordBoxes from backend) ──────────────────────────
+        // 1. Show a stub doc so the workspace appears while rendering runs
+        setCurrentDoc({ ...uploadedDoc, text: uploadedDoc.text });
+        setIsUploading(false);
+        setIsOcring(true); // Reusing this flag for visual rendering
+
+        // 2. Render pages in browser for visual display
+        const pages = await renderPDFPages(file);
+        setPdfPages(pages);
+        setWordBoxes(uploadedDoc.wordBoxes || []);
+        setIsOcring(false);
+
+        // 3. Run PII detection on the text
+        setIsDetecting(true);
+        const result = await detectPII(uploadedDoc.text);
+        setSpans(result.spans.map(s => ({ ...s, status: 'unreviewed', action: null })));
+        if (result.meta?.droppedInvalidOrOverlapping > 0) {
+          console.info(`[detection] ${result.meta.droppedInvalidOrOverlapping} spans dropped`);
+        }
+      } else {
+        // ── Text PDF / DOCX / TXT path (unchanged) ──────────────────────────
+        setCurrentDoc(uploadedDoc);
+        setIsUploading(false);
+        setIsDetecting(true);
+
+        const result = await detectPII(uploadedDoc.text);
+        setSpans(result.spans.map(s => ({ ...s, status: 'unreviewed', action: null })));
+        if (result.meta?.droppedInvalidOrOverlapping > 0) {
+          console.info(`[detection] ${result.meta.droppedInvalidOrOverlapping} spans dropped`);
+        }
       }
     } catch (err) {
       setDetectError(err.message);
     } finally {
       setIsUploading(false);
+      setIsOcring(false);
       setIsDetecting(false);
     }
   }, []);
@@ -258,6 +305,8 @@ export default function App() {
       endIndex: selection.endIndex,
       confidence: 1.0, // Manual redactions are 100% confident
       reasoning: "Manually added by user.",
+      status: 'confirmed',
+      action: 'redact',
     };
 
     setSpans(prev => {
@@ -295,21 +344,47 @@ export default function App() {
   }, [handleFileUpload]);
 
   // --- Export Handlers ---
-  const handleExportPDF = useCallback(() => {
+  const handleExportPDF = useCallback(async () => {
     if (!currentDoc) return;
-    const documentViewEl = document.querySelector('.document-view');
-    if (documentViewEl) {
-      exportToPDF(documentViewEl, `${currentDoc.title.replace(/\.[^/.]+$/, "")}_redacted.pdf`);
+    
+    // Fallback to visual HTML export for sample documents or non-PDFs
+    if (!uploadedFile) {
+      const documentViewEl = document.querySelector('.document-view');
+      if (documentViewEl) {
+        exportToPDF(documentViewEl, `${currentDoc.title.replace(/\.[^/.]+$/, "")}_redacted.pdf`);
+      }
+      return;
     }
-  }, [currentDoc]);
+    
+    try {
+      const blob = await exportPDF(uploadedFile, spans);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${currentDoc.title.replace(/\.[^/.]+$/, "")}_redacted.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      if (currentDoc.text) {
+        setDiffPanel({ originalText: currentDoc.text, redactedText: buildRedactedText(currentDoc.text, spans) });
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'PDF export failed');
+    }
+  }, [currentDoc, spans, uploadedFile]);
 
   const handleExportDocx = useCallback(() => {
     if (!currentDoc) return;
     exportToDocx(currentDoc.text, spans, `${currentDoc.title.replace(/\.[^/.]+$/, "")}_redacted.docx`);
+    setDiffPanel({ originalText: currentDoc.text, redactedText: buildRedactedText(currentDoc.text, spans) });
   }, [currentDoc, spans]);
 
   const hasDocument = Boolean(currentDoc);
   const canAnalyze = Boolean(selectedDocId && !isDetecting);
+  const isImagePDF = Boolean(currentDoc?.isImagePDF);
 
   return (
     <div className="app-container">
@@ -434,8 +509,9 @@ export default function App() {
               <div style={{ marginLeft: 'auto' }}>
                 <ExportMenu 
                   onExportPDF={handleExportPDF} 
-                  onExportDocx={handleExportDocx} 
-                  disabled={isUploading || isDetecting} 
+                  onExportDocx={handleExportDocx}
+                  allReviewed={allReviewed}
+                  unreviewedCount={unreviewedCount}
                 />
               </div>
             </>
@@ -450,9 +526,16 @@ export default function App() {
           />
         </div>
 
-        {/* Summary bar when detecting */}
-        {isDetecting && (
+        {/* Summary bar when detecting or OCR-ing */}
+        {(isDetecting || isOcring) && (
           <SummaryBar spans={spans} isLoading={true} />
+        )}
+
+        {/* OCR in progress banner */}
+        {isOcring && !isDetecting && (
+          <div style={{ textAlign: 'center', padding: 'var(--space-4)', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
+            🔍 Running OCR on scanned document… this may take a moment.
+          </div>
         )}
 
         {/* Error State */}
@@ -487,18 +570,36 @@ export default function App() {
         )}
 
         {/* Workspace: document + resize handle + side panel */}
-        {hasDocument && !isDetecting && (
+        {hasDocument && !isDetecting && !isOcring && (
           <div className="workspace" ref={workspaceRef}>
             <div style={{ width: `${docWidthPct}%`, minWidth: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-              <SummaryBar spans={spans} isLoading={false} />
-              <DocumentView
-                text={currentDoc.text}
-                spans={augmentedSpans}
-                selectedSpanId={selectedSpan?.id ?? null}
-                revealedIds={revealedIds}
-                onSpanClick={handleSpanClick}
-                onTextSelection={handleTextSelection}
+              <ProgressBar 
+                reviewedCount={reviewedCount}
+                totalCount={totalCount}
+                unreviewedCount={unreviewedCount}
+                allReviewed={allReviewed}
+                onNextUnreviewed={handleNextUnreviewed}
+                onConfirmHighConfidence={handleConfirmHighConfidence}
               />
+              <SummaryBar spans={augmentedSpans} isLoading={false} />
+              {isImagePDF ? (
+                <ImageDocumentView
+                  pages={pdfPages}
+                  wordBoxes={wordBoxes}
+                  spans={augmentedSpans}
+                  selectedSpanId={selectedSpan?.id ?? null}
+                  onSpanClick={handleSpanClick}
+                  pdfDims={currentDoc.pages}
+                />
+              ) : (
+                <DocumentView
+                  text={currentDoc.text}
+                  spans={augmentedSpans}
+                  selectedSpanId={selectedSpan?.id ?? null}
+                  onSpanClick={handleSpanClick}
+                  onTextSelection={handleTextSelection}
+                />
+              )}
             </div>
 
             {/* Drag handle */}
@@ -515,10 +616,8 @@ export default function App() {
               <AllRedactionsPanel
                 spans={augmentedSpans}
                 selectedSpanId={selectedSpan?.id}
-                revealedIds={revealedIds}
                 onSpanClick={handleSpanClick}
-                onReveal={handleReveal}
-                onHide={handleHide}
+                onUpdateSpan={handleUpdateSpan}
                 onRemove={handleRemoveSpan}
               />
             </div>
@@ -537,6 +636,17 @@ export default function App() {
           onAskExplain={handleAskExplain}
           onAddManualRedaction={handleAddManualSpan}
         />
+      )}
+
+      {/* Export Diff Panel */}
+      {diffPanel && (
+        <div style={{ position: 'fixed', bottom: 'var(--space-4)', right: 'var(--space-4)', zIndex: 1000, width: 400, boxShadow: 'var(--shadow-xl)' }}>
+          <ExportDiffPanel 
+            originalText={diffPanel.originalText}
+            redactedText={diffPanel.redactedText}
+            onClose={() => setDiffPanel(null)}
+          />
+        </div>
       )}
     </div>
   );
